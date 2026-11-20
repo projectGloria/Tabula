@@ -1,0 +1,125 @@
+:root {
+  --ui-bg: #ffffff;
+  --ui-fg: #26241f;
+  --ui-muted: #6b675e;
+  --ui-border: #e2ded4;
+  --ui-hover: #f1eee7;
+  --ui-active-bg: #dfe8fb;
+  --ui-active-fg: #1d4fb0;
+  --ui-focus: #2f6fde;
+  --ui-shadow: 0 2px 10px rgb(0 0 0 / 8%);
+  --ui-radius: 10px;
+
+  color-scheme: light dark;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  color: var(--ui-fg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ui-bg: #22211e;
+    --ui-fg: #ecebe6;
+    --ui-muted: #a19d93;
+    --ui-border: #3a3833;
+    --ui-hover: #2e2d29;
+    --ui-active-bg: #23385f;
+    --ui-active-fg: #b9cff7;
+    --ui-shadow: 0 2px 10px rgb(0 0 0 / 40%);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  background: var(--ui-bg);
+}
+
+.app {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+
+.canvas-host {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.canvas-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.canvas-overlay {
+  touch-action: none;
+  outline: none;
+}
+
+.toolbar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--ui-shadow);
+}
+
+.tool-button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ui-fg);
+  cursor: pointer;
+}
+
+.tool-button:hover {
+  background: var(--ui-hover);
+}
+
+.tool-button[aria-pressed='true'] {
+  background: var(--ui-active-bg);
+  color: var(--ui-active-fg);
+}
+
+.tool-button:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
