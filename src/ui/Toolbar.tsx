@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useSyncExternalStore, type ReactNode } from 'react';
 import type { CommandId } from '../core/actions/commands';
 import type { ToolId } from '../core/store/app-state';
 import type { I18nKey } from '../i18n/en';
@@ -12,7 +12,9 @@ import {
   LineIcon,
   PencilIcon,
   RectangleIcon,
+  RedoIcon,
   SelectIcon,
+  UndoIcon,
 } from './icons';
 
 interface ToolButtonDef {
@@ -37,9 +39,45 @@ const TOOL_BUTTONS: readonly ToolButtonDef[] = [
   { tool: 'freedraw', command: 'tool.freedraw', labelKey: 'tool.freedraw', icon: <PencilIcon /> },
 ];
 
+function useHistoryFlag(read: () => boolean): boolean {
+  const { editor } = useApp();
+  return useSyncExternalStore(editor.subscribeHistory, read);
+}
+
+function HistoryButton({
+  command,
+  enabled,
+  icon,
+}: {
+  command: CommandId;
+  enabled: boolean;
+  icon: ReactNode;
+}) {
+  const app = useApp();
+  const label = command === 'history.undo' ? t('command.undo') : t('command.redo');
+  const key = app.keymap.shortcutFor(command);
+  const title = key === undefined ? label : t('shortcut.withKey', { label, key });
+  return (
+    <button
+      type="button"
+      className="tool-button"
+      aria-label={title}
+      title={title}
+      disabled={!enabled}
+      onClick={() => {
+        app.runCommand(command);
+      }}
+    >
+      {icon}
+    </button>
+  );
+}
+
 export function Toolbar() {
   const app = useApp();
   const activeTool = useEditorState((s) => s.activeTool);
+  const canUndo = useHistoryFlag(() => app.editor.history.canUndo);
+  const canRedo = useHistoryFlag(() => app.editor.history.canRedo);
 
   return (
     <div className="toolbar" role="toolbar" aria-label={t('toolbar.label')}>
@@ -63,6 +101,9 @@ export function Toolbar() {
           </button>
         );
       })}
+      <div className="toolbar-sep" role="separator" />
+      <HistoryButton command="history.undo" enabled={canUndo} icon={<UndoIcon />} />
+      <HistoryButton command="history.redo" enabled={canRedo} icon={<RedoIcon />} />
     </div>
   );
 }

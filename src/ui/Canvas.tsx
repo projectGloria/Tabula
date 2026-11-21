@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { panCamera, setViewport, zoomCameraAt } from '../core/actions/actions';
+import { clearSelection, panCamera, setViewport, zoomCameraAt } from '../core/actions/actions';
+import { selectWithGroups } from '../core/actions/edit-actions';
+import { isSelected } from '../core/store/app-state';
 import { screenToWorld, wheelZoomFactor } from '../core/camera/camera';
 import type { Point } from '../core/geometry/vec';
 import { isEditableTarget } from '../core/keymap/keymap';
@@ -17,6 +19,9 @@ const debugLabels: DebugLabels = {
 };
 
 const LINE_HEIGHT_PX = 16;
+/** Touch press duration that opens the context menu. */
+const LONG_PRESS_MS = 500;
+const LONG_PRESS_SLOP_PX = 8;
 
 interface PanGesture {
   readonly pointerId: number;
@@ -34,11 +39,16 @@ export function Canvas() {
     const sceneCanvas = sceneRef.current;
     const overlay = overlayRef.current;
     if (!container || !sceneCanvas || !overlay) return;
-    const { editor, tools, toolContext, isMac } = app;
+    const { editor, tools, toolContext, isMac, ui } = app;
 
     const renderer = new Renderer(sceneCanvas, overlay, editor.getState, editor.index, debugLabels);
     let spaceHeld = false;
     let pan: PanGesture | null = null;
+    // Pointers whose gesture is open as a history transaction.
+    const gestures = new Set<number>();
+    const endGesture = (pointerId: number): void => {
+      if (gestures.delete(pointerId)) editor.end();
+    };
 
     const updateCursor = (): void => {
       overlay.style.cursor = pan
@@ -99,6 +109,23 @@ export function Canvas() {
     };
     const activeTool = () => tools[editor.getState().activeTool];
 
+    /** Selects what is under `screen` (if unselected), then opens the menu there. */
+    const openMenuAt = (screen: Point): void => {
+      const world = screenToWorld(editor.getState().camera, screen);
+      const hit = editor.hitTest(world);
+      if (hit === undefined) editor.update(clearSelection);
+      else if (!isSelected(editor.getState(), hit))
+        editor.update((s) => selectWithGroups(s, [hit], false));
+      ui.pointerWorld = world;
+      ui.openContextMenu(screen);
+    };
+
+    let longPress: { id: number; timer: number; start: Point } | null = null;
+    const clearLongPress = (): void => {
+      if (longPress) window.clearTimeout(longPress.timer);
+      longPress = null;
+    };
+
     const onPointerDown = (e: PointerEvent): void => {
       overlay.focus({ preventScroll: true });
       overlay.setPointerCapture(e.pointerId);
@@ -108,10 +135,35 @@ export function Canvas() {
         updateCursor();
         return;
       }
+      if (!gestures.has(e.pointerId)) {
+        gestures.add(e.pointerId);
+        editor.begin();
+      }
+      if (e.pointerType === 'touch') {
+        clearLongPress();
+        const start = toScreen(e);
+        const id = e.pointerId;
+        const timer = window.setTimeout(() => {
+          longPress = null;
+          activeTool().cancel(toolContext);
+          endGesture(id);
+          openMenuAt(start);
+        }, LONG_PRESS_MS);
+        longPress = { id, timer, start };
+      }
       activeTool().onPointerDown(toolContext, toInput(e));
       updateCursor();
     };
     const onPointerMove = (e: PointerEvent): void => {
+      const screenPt = toScreen(e);
+      ui.pointerWorld = screenToWorld(editor.getState().camera, screenPt);
+      if (
+        longPress?.id === e.pointerId &&
+        Math.hypot(screenPt.x - longPress.start.x, screenPt.y - longPress.start.y) >
+          LONG_PRESS_SLOP_PX
+      ) {
+        clearLongPress();
+      }
       if (pan) {
         if (pan.pointerId !== e.pointerId) return;
         const p = toScreen(e);
@@ -129,6 +181,7 @@ export function Canvas() {
       updateCursor();
     };
     const onPointerUp = (e: PointerEvent): void => {
+      if (longPress?.id === e.pointerId) clearLongPress();
       if (overlay.hasPointerCapture(e.pointerId)) overlay.releasePointerCapture(e.pointerId);
       if (pan) {
         if (pan.pointerId === e.pointerId) {
@@ -138,15 +191,33 @@ export function Canvas() {
         return;
       }
       activeTool().onPointerUp(toolContext, toInput(e));
+      endGesture(e.pointerId);
       updateCursor();
     };
     const onPointerCancel = (e: PointerEvent): void => {
+      if (longPress?.id === e.pointerId) clearLongPress();
       if (pan?.pointerId === e.pointerId) {
         pan = null;
         updateCursor();
         return;
       }
       activeTool().cancel(toolContext);
+      endGesture(e.pointerId);
+    };
+    const onDoubleClick = (e: MouseEvent): void => {
+      const screen = toScreen(e);
+      activeTool().onDoubleClick?.(toolContext, {
+        pointerId: -1,
+        kind: 'mouse',
+        screen,
+        world: screenToWorld(editor.getState().camera, screen),
+        button: 0,
+        pressure: 0,
+        shift: e.shiftKey,
+        alt: e.altKey,
+        mod: isMac ? e.metaKey : e.ctrlKey,
+      });
+      updateCursor();
     };
 
     // --- Wheel: pan, Ctrl/⌘ (or trackpad pinch) zooms to cursor ----------
@@ -182,11 +253,18 @@ export function Canvas() {
       updateCursor();
     };
     const onBlur = (): void => {
+      for (const id of [...gestures]) endGesture(id);
       spaceHeld = false;
       updateCursor();
     };
     const onContextMenu = (e: MouseEvent): void => {
       e.preventDefault();
+      // Touch long-press is handled by the timer above.
+      if ((e as PointerEvent).pointerType === 'touch') return;
+      openMenuAt(toScreen(e));
+    };
+    const onPointerLeave = (): void => {
+      ui.pointerWorld = null;
     };
 
     overlay.addEventListener('pointerdown', onPointerDown);
@@ -195,6 +273,8 @@ export function Canvas() {
     overlay.addEventListener('pointercancel', onPointerCancel);
     overlay.addEventListener('wheel', onWheel, { passive: false });
     overlay.addEventListener('contextmenu', onContextMenu);
+    overlay.addEventListener('dblclick', onDoubleClick);
+    overlay.addEventListener('pointerleave', onPointerLeave);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onBlur);
@@ -206,6 +286,9 @@ export function Canvas() {
       overlay.removeEventListener('pointercancel', onPointerCancel);
       overlay.removeEventListener('wheel', onWheel);
       overlay.removeEventListener('contextmenu', onContextMenu);
+      overlay.removeEventListener('dblclick', onDoubleClick);
+      overlay.removeEventListener('pointerleave', onPointerLeave);
+      clearLongPress();
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);

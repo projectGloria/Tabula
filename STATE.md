@@ -8,8 +8,8 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 | --- | --------------------------------- | ----------------------------------- |
 | 1   | Foundation & Guardrails           | Done                                |
 | 2   | Core Shapes & Transform Geometry  | Done                                |
-| 3   | Hand-Drawn Renderer & Style Panel | **Done**: awaiting browser sign-off |
-| 4   | Editing Core & History            | Next                                |
+| 3   | Hand-Drawn Renderer & Style Panel | Done                                |
+| 4   | Editing Core & History            | **Done**: awaiting browser sign-off |
 | 5   | Text & Bound Labels               | —                                   |
 | 6   | Arrow Binding & Snapping          | —                                   |
 | 7   | Persistence, Files & Export       | — (planned split: 7a / 7b)          |
@@ -25,6 +25,8 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 - Web Locks API and the M7 split were proposed and assumed approved (not explicitly confirmed).
 - M2 (flagged, not yet confirmed): multi-selection resize is always aspect-locked, so rotated members stay undistorted. Pencil is sticky and does not select its stroke. A 2-point line or arrow shows endpoint handles only. Escape keeps a polyline that has ≥ 2 points. The arrow default is no start head and an `arrow` end head. All 6 head types render.
 - M3 (flagged, not yet confirmed): style memory is per category (rect/diamond/ellipse share one; line/arrow share one; pencil has its own; arrowheads are separate). Editing the selection also updates its category's memory. Locked elements are skipped. Only custom (non-palette) colors go into Recent, which is session-only until M7. Roughness and pattern do not apply to pencil strokes. The hatch color is the fill color, so the default white fill makes a hatch invisible until a fill color is picked.
+
+- M4 (flagged, not yet confirmed): Ctrl/⌘+D duplicates (offset 10). Alt+drag duplicates. A click selects the outermost group; double-click enters it (focus group, dashed frame). Ctrl/⌘+click picks a single member. The marquee selects only fully enclosed, unlocked elements. Clipboard is JSON `text/plain` with kind `tabula/clipboard`; paste goes to the pointer, Ctrl/⌘+Shift+V pastes in place. Locked elements cannot be selected by click or marquee and are skipped by every edit; "Unlock all" is in the canvas menu. History keeps scene changes only (selection is restored with them), max 200 entries, keyed edits coalesce within 1 s.
 
 ## Locked invariants
 
@@ -42,6 +44,8 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 - **`src/core` has no React** and no imports from `ui/` or `app/`. This is enforced by ESLint.
 - **Keymap** matches `event.code` (physical keys). `Mod` is Ctrl on Windows/Linux and ⌘ on macOS. Shortcuts are skipped inside editable targets.
 - **All UI strings** go through `t()` (`src/i18n`).
+- **History**: `Editor.update` records scene changes. `begin`/`end` collapse a gesture into one entry; `{history: 'skip'}` leaves a change out; any other string key coalesces. Tools wrap gestures in transactions.
+- **Groups**: `groupIds` are innermost first. Selection target = outermost group, or the next group inside `focusGroup`.
 - **Dev-only commands** (`devOnly: true`) are filtered out of production bindings.
 
 ## Module map
@@ -67,11 +71,16 @@ src/core/render     renderer.ts (dual canvas, rAF batching, culling, debug), dra
 src/core/render/sketch  rng (xorshift32, rngFor streams), path (PathCmd, builders, itemAt), strokes
                     (segment/polyline/loop wobble), hatch, arrowheads, generate (Drawable layers), cache
 src/core/model      palette.ts (stroke/fill palettes, normalizeHex)
-src/core/{history,binding,snapping,io,persist}   empty; reserved for M4/M6/M7
+src/core/history    history.ts (stack, coalescing, transactions)
+src/core/io         validate.ts (sanitizeElement/Style: untrusted input), clipboard.ts
+src/core/actions    edit-actions.ts (select all, delete, duplicate, group, z-order, align, flip,
+                    lock, nudge); model/groups.ts (expandToGroups, selectionTargetGroup)
+src/core/{binding,snapping,persist}   empty; reserved for M6/M7
 src/i18n            en.ts (string table), t.ts
 src/app             main.tsx (entry), create-app.ts (wires services), App.tsx
 src/ui              Canvas.tsx (pointer/wheel/resize), Toolbar.tsx, StylePanel.tsx, icons.tsx,
-                    style-icons.tsx, hooks/, styles.css
+                    style-icons.tsx, ArrangeSection.tsx, ContextMenu.tsx, hooks/ (useClipboard),
+                    styles.css
 ```
 
 Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
@@ -88,10 +97,9 @@ Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
 
 ## Known limitations / deferred
 
-- No marquee or undo (M4), no persistence (M7). Reload loses everything.
-- The multi-selection frame is an axis-aligned union box recomputed every frame, so it changes size during group rotation. A persistent group frame is a candidate for M4.
+- No persistence (M7). Reload loses everything.
+- The multi-selection frame is an axis-aligned union box recomputed every frame, so it changes size during group rotation.
 - Lines have no mid-point or point-insert editing; only 2-point lines get endpoint handles. Curved and elbow arrows are out of scope (straight only).
-- Style edits are not undoable yet (M4). The opacity slider will need history coalescing then.
 - At opacity below 100% a solid fill and its outline overlap and the overlap looks slightly darker (layers are composited separately).
 - The eyedropper uses the browser EyeDropper API (Chromium only) and is hidden elsewhere.
 - The style panel has no keyboard shortcuts yet (M8).
@@ -104,8 +112,8 @@ Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
 
 `npm run dev` · `npm run typecheck` · `npm test` · `npm run lint` · `npm run format` · `npm run build`
 
-## Next: Milestone 4 starting point
+## Next: Milestone 5 starting point
 
-1. `core/history/`: undo/redo of scene changes (gesture-level entries; coalesce slider drags and style edits).
-2. Marquee selection, duplicate, delete, copy/paste, z-order, group/ungroup, lock, align/distribute per INITIAL_PLAN.md.
-3. Route tool commits and `applyStyle` through history.
+1. Text element (`text` type) with a textarea overlay editor, auto-size, alignment, font family/size.
+2. Bound labels on shapes and arrows; add `text` to `validate`.
+3. Fonts via `@font-face` with fallback stacks (font files pending download approval).

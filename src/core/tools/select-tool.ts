@@ -1,13 +1,15 @@
 import {
   clearSelection,
+  deleteElements,
   restoreElements,
   setElementGeometry,
   setElementPositions,
   setSelection,
-  toggleSelected,
 } from '../actions/actions';
+import { duplicateElements, setFocusGroup } from '../actions/edit-actions';
+import { boxContainsBox, boxFromRect, type Box } from '../geometry/box';
 import { pointsPatchFromWorld, worldPointsOf } from '../geometry/element-geometry';
-import { rectCenter, type RectLike } from '../geometry/rect';
+import { rectAABB, rectCenter, type RectLike } from '../geometry/rect';
 import {
   angleAround,
   computeResize,
@@ -26,9 +28,10 @@ import {
   insideSelectionFrame,
   resizeCursor,
 } from '../hit/handles';
+import { expandToGroups, selectionTargetGroup } from '../model/groups';
 import type { GeometryPatch } from '../model/scene';
 import type { ElementId, LinearElement, SceneElement } from '../model/types';
-import { isSelected, selectedIds, type AppState } from '../store/app-state';
+import { EMPTY_OVERLAY, isSelected, selectedIds, type AppState } from '../store/app-state';
 import { snapSegment } from './constrain';
 import { DRAG_THRESHOLD_PX, type PointerInput, type Tool, type ToolContext } from './tool';
 
@@ -43,6 +46,12 @@ interface PressBase {
 
 interface MovePress extends PressBase {
   readonly type: 'move';
+  /** Alt held at press: the first drag step duplicates the selection. */
+  readonly duplicate: boolean;
+  /** Ids the move started from, once an Alt-drag replaced them with copies. */
+  sources: readonly ElementId[] | null;
+  /** Elements being moved, as they were when the drag began. */
+  moving: ReadonlyMap<ElementId, SceneElement>;
 }
 
 interface ResizePress extends PressBase {
@@ -68,7 +77,13 @@ interface EndpointPress extends PressBase {
   readonly grabOffset: Point;
 }
 
-type Press = MovePress | ResizePress | RotatePress | EndpointPress;
+interface MarqueePress extends PressBase {
+  readonly type: 'marquee';
+  /** Selection before the marquee (Shift adds to it). */
+  readonly initial: readonly ElementId[];
+}
+
+type Press = MovePress | ResizePress | RotatePress | EndpointPress | MarqueePress;
 
 function snapshot(state: AppState, ids: Iterable<ElementId>): Map<ElementId, SceneElement> {
   const out = new Map<ElementId, SceneElement>();
@@ -79,6 +94,18 @@ function snapshot(state: AppState, ids: Iterable<ElementId>): Map<ElementId, Sce
   return out;
 }
 
+function clearOverlay(s: AppState): AppState {
+  return s.overlay.marquee === null ? s : { ...s, overlay: EMPTY_OVERLAY };
+}
+
+/** Unlocked elements whose bounds lie fully inside `box`. */
+export function elementsInside(state: AppState, box: Box): ElementId[] {
+  return state.scene.order.filter((id) => {
+    const el = state.scene.entities[id];
+    return el !== undefined && !el.locked && boxContainsBox(box, rectAABB(el));
+  });
+}
+
 export class SelectTool implements Tool {
   readonly id = 'select' as const;
   private press: Press | null = null;
@@ -87,7 +114,8 @@ export class SelectTool implements Tool {
   get cursor(): string {
     const p = this.press;
     if (p?.type === 'rotate') return 'grabbing';
-    if (p?.type === 'move' && p.dragging) return 'move';
+    if (p?.type === 'move' && p.dragging) return p.duplicate ? 'copy' : 'move';
+    if (p?.type === 'marquee') return 'crosshair';
     return this.hoverCursor;
   }
 
@@ -149,19 +177,54 @@ export class SelectTool implements Tool {
     if (hit === undefined) {
       // 3. Empty space inside the selection frame drags the selection.
       if (!e.shift && frame && insideSelectionFrame(state, e.screen, frame)) {
-        this.startMove(state, base);
+        this.startMove(state, base, e.alt);
         return;
       }
-      if (!e.shift) ctx.update(clearSelection);
+      // 4. Otherwise a marquee; a plain click on empty space also leaves an entered group.
+      if (!e.shift) ctx.update((s) => setFocusGroup(clearSelection(s), null));
+      this.press = {
+        ...base,
+        type: 'marquee',
+        originals: new Map(),
+        initial: e.shift ? selectedIds(state) : [],
+      };
       return;
     }
 
-    if (e.shift) ctx.update((s) => toggleSelected(s, hit));
-    else if (!isSelected(state, hit)) ctx.update((s) => setSelection(s, [hit]));
+    const el = state.scene.entities[hit];
+    if (!el) return;
+    if (state.focusGroup !== null && !el.groupIds.includes(state.focusGroup)) {
+      ctx.update((s) => setFocusGroup(s, null));
+    }
+    const cur = ctx.getState();
+    // Mod-click picks the single element, even inside a group.
+    const targets = e.mod ? [hit] : expandToGroups(cur.scene, [hit], cur.focusGroup);
+    if (e.shift) {
+      const all = targets.every((id) => isSelected(cur, id));
+      const keep = selectedIds(cur).filter((id) => !(all && targets.includes(id)));
+      ctx.update((s) => setSelection(s, all ? keep : [...keep, ...targets]));
+    } else if (!isSelected(cur, hit) || e.mod) {
+      ctx.update((s) => setSelection(s, targets));
+    }
 
     const next = ctx.getState();
     if (!isSelected(next, hit)) return; // shift-click just deselected it
-    this.startMove(next, base);
+    this.startMove(next, base, e.alt);
+  }
+
+  /** Double-click enters the group under the pointer, one level per click. */
+  onDoubleClick(ctx: ToolContext, e: PointerInput): void {
+    const hit = ctx.hitTest(e.world);
+    if (hit === undefined) return;
+    const state = ctx.getState();
+    const el = state.scene.entities[hit];
+    if (!el) return;
+    const group = selectionTargetGroup(el, state.focusGroup);
+    if (group === null) return;
+    ctx.update((s) => {
+      const focused = setFocusGroup(s, group);
+      return setSelection(focused, expandToGroups(focused.scene, [hit], group));
+    });
   }
 
   onPointerMove(ctx: ToolContext, e: PointerInput): void {
@@ -172,10 +235,15 @@ export class SelectTool implements Tool {
     }
     if (p.pointerId !== e.pointerId) return;
     if (!p.dragging && distance(p.startScreen, e.screen) < DRAG_THRESHOLD_PX) return;
+    const first = !p.dragging;
     p.dragging = true;
     switch (p.type) {
       case 'move':
+        if (first && p.duplicate) this.duplicateForDrag(ctx, p);
         this.applyMove(ctx, p, e);
+        return;
+      case 'marquee':
+        this.applyMarquee(ctx, p, e);
         return;
       case 'resize':
         this.applyResize(ctx, p, e);
@@ -192,7 +260,9 @@ export class SelectTool implements Tool {
   onPointerUp(ctx: ToolContext, e: PointerInput): void {
     if (this.press?.pointerId !== e.pointerId) return;
     this.onPointerMove(ctx, e);
+    const p = this.press;
     this.press = null;
+    if (p.type === 'marquee') ctx.update(clearOverlay, { history: 'skip' });
     this.updateHover(ctx, e);
   }
 
@@ -200,11 +270,50 @@ export class SelectTool implements Tool {
     const p = this.press;
     if (!p) return;
     this.press = null;
+    if (p.type === 'marquee') {
+      const initial = p.initial;
+      ctx.update((s) => setSelection(clearOverlay(s), initial));
+      return;
+    }
+    if (p.type === 'move' && p.sources) {
+      const copies = [...p.moving.keys()];
+      const sources = p.sources;
+      ctx.update((s) => setSelection(deleteElements(s, copies), sources));
+      return;
+    }
     if (p.dragging) ctx.update((s) => restoreElements(s, p.originals.values()));
   }
 
-  private startMove(state: AppState, base: Omit<PressBase, 'originals'>): void {
-    this.press = { ...base, type: 'move', originals: snapshot(state, selectedIds(state)) };
+  private startMove(state: AppState, base: Omit<PressBase, 'originals'>, duplicate: boolean): void {
+    const originals = snapshot(state, selectedIds(state));
+    this.press = { ...base, type: 'move', originals, duplicate, sources: null, moving: originals };
+  }
+
+  /** Alt-drag: copies stay where the originals were placed; the drag moves the copies. */
+  private duplicateForDrag(ctx: ToolContext, p: MovePress): void {
+    const sources = [...p.originals.keys()];
+    if (sources.length === 0) return;
+    ctx.update((s) => duplicateElements(s, sources, { x: 0, y: 0 }));
+    const after = ctx.getState();
+    p.sources = sources;
+    p.moving = snapshot(after, selectedIds(after));
+  }
+
+  private applyMarquee(ctx: ToolContext, p: MarqueePress, e: PointerInput): void {
+    const box = boxFromRect(
+      Math.min(p.startWorld.x, e.world.x),
+      Math.min(p.startWorld.y, e.world.y),
+      Math.abs(e.world.x - p.startWorld.x),
+      Math.abs(e.world.y - p.startWorld.y),
+    );
+    ctx.update((s) => {
+      const inside = elementsInside(s, box);
+      const ids = expandToGroups(s.scene, inside, s.focusGroup).filter(
+        (id) => s.scene.entities[id]?.locked === false,
+      );
+      const next = setSelection(s, [...p.initial, ...ids]);
+      return { ...next, overlay: { ...next.overlay, marquee: box } };
+    });
   }
 
   private updateHover(ctx: ToolContext, e: PointerInput): void {
@@ -231,7 +340,7 @@ export class SelectTool implements Tool {
     const dx = e.world.x - p.startWorld.x;
     const dy = e.world.y - p.startWorld.y;
     const positions = new Map<ElementId, Point>();
-    for (const [id, o] of p.originals) positions.set(id, { x: o.x + dx, y: o.y + dy });
+    for (const [id, o] of p.moving) positions.set(id, { x: o.x + dx, y: o.y + dy });
     ctx.update((s) => setElementPositions(s, positions));
   }
 

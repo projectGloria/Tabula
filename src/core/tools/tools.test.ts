@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { addElements, setTool } from '../actions/actions';
+import { addElements, setSelection, setTool } from '../actions/actions';
+import { groupSelection } from '../actions/edit-actions';
 import { screenToWorld } from '../camera/camera';
 import type { Point } from '../geometry/vec';
 import { createRectangle } from '../model/scene';
@@ -177,5 +178,63 @@ describe('SelectTool', () => {
     tool.onPointerMove(h.ctx, h.input({ x: 140, y: 100 }));
     tool.onPointerUp(h.ctx, h.input({ x: 140, y: 100 }));
     expect(h.editor.getState().scene.entities[a.id]).toMatchObject({ x: 20, y: 0 });
+  });
+
+  it('marquee selects only fully enclosed elements and clears its overlay', () => {
+    const tool = new SelectTool();
+    tool.onPointerDown(h.ctx, h.input({ x: -10, y: -10 }));
+    tool.onPointerMove(h.ctx, h.input({ x: 200, y: 200 }));
+    expect(h.editor.getState().overlay.marquee).not.toBeNull();
+    expect(selectedIds(h.editor.getState())).toEqual([a.id]);
+    tool.onPointerUp(h.ctx, h.input({ x: 200, y: 200 }));
+    expect(h.editor.getState().overlay.marquee).toBeNull();
+    expect(selectedIds(h.editor.getState())).toEqual([a.id]);
+  });
+
+  it('marquee cancel restores the prior selection', () => {
+    const tool = new SelectTool();
+    h.editor.update((s) => setSelection(s, [b.id]));
+    tool.onPointerDown(h.ctx, h.input({ x: -10, y: -10 }, { shift: true }));
+    tool.onPointerMove(h.ctx, h.input({ x: 200, y: 200 }, { shift: true }));
+    expect([...selectedIds(h.editor.getState())].sort()).toEqual([a.id, b.id].sort());
+    tool.cancel(h.ctx);
+    expect(selectedIds(h.editor.getState())).toEqual([b.id]);
+  });
+
+  it('alt-drag duplicates and moves the copy, leaving the original', () => {
+    const tool = new SelectTool();
+    tool.onPointerDown(h.ctx, h.input({ x: 50, y: 50 }, { alt: true }));
+    tool.onPointerMove(h.ctx, h.input({ x: 90, y: 50 }, { alt: true }));
+    tool.onPointerUp(h.ctx, h.input({ x: 90, y: 50 }, { alt: true }));
+    const s = h.editor.getState();
+    expect(s.scene.order).toHaveLength(3);
+    expect(s.scene.entities[a.id]).toMatchObject({ x: 0, y: 0 });
+    const copy = s.scene.entities[selectedIds(s)[0] ?? a.id];
+    expect(copy?.id).not.toBe(a.id);
+    expect(copy).toMatchObject({ x: 40, y: 0 });
+  });
+
+  it('alt-drag cancel removes the copy', () => {
+    const tool = new SelectTool();
+    tool.onPointerDown(h.ctx, h.input({ x: 50, y: 50 }, { alt: true }));
+    tool.onPointerMove(h.ctx, h.input({ x: 90, y: 50 }, { alt: true }));
+    tool.cancel(h.ctx);
+    const s = h.editor.getState();
+    expect(s.scene.order).toEqual([a.id, b.id]);
+    expect(selectedIds(s)).toEqual([a.id]);
+  });
+
+  it('clicks select whole groups; double-click enters the group', () => {
+    h.editor.update((s) => groupSelection(setSelection(s, [a.id, b.id])));
+    h.editor.update((s) => setSelection(s, []));
+    const tool = new SelectTool();
+    tool.onPointerDown(h.ctx, h.input({ x: 50, y: 50 }));
+    tool.onPointerUp(h.ctx, h.input({ x: 50, y: 50 }));
+    expect(selectedIds(h.editor.getState())).toEqual([a.id, b.id]);
+    tool.onDoubleClick(h.ctx, h.input({ x: 50, y: 50 }));
+    expect(h.editor.getState().focusGroup).not.toBeNull();
+    tool.onPointerDown(h.ctx, h.input({ x: 350, y: 50 }));
+    tool.onPointerUp(h.ctx, h.input({ x: 350, y: 50 }));
+    expect(selectedIds(h.editor.getState())).toEqual([b.id]);
   });
 });

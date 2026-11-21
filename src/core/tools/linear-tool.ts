@@ -63,6 +63,8 @@ export class LinearTool implements Tool {
         pointerId: e.pointerId,
         pressScreen: e.screen,
       };
+      // One undo step for the whole line, even across polyline clicks.
+      ctx.begin?.();
       ctx.update((s) => addElements(s, [el]));
       this.sync(ctx);
       return;
@@ -150,6 +152,7 @@ export class LinearTool implements Tool {
       pts.length < 2 || !first || pts.every((p) => distance(p, first) * zoom < MIN_EXTENT_PX);
     if (tooSmall) {
       ctx.update((s) => deleteElements(s, [g.id]));
+      ctx.end?.();
       return;
     }
     const patch = pointsPatchFromWorld(0, pts);
@@ -158,6 +161,7 @@ export class LinearTool implements Tool {
       // Tool lock arrives in M8; until then return to Select after each line.
       return setTool(setSelection(next, [g.id]), 'select');
     });
+    ctx.end?.();
   }
 
   private discard(ctx: ToolContext): void {
@@ -165,5 +169,6 @@ export class LinearTool implements Tool {
     if (!g) return;
     this.g = null;
     ctx.update((s) => deleteElements(s, [g.id]));
+    ctx.end?.();
   }
 }

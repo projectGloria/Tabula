@@ -1,6 +1,6 @@
 import { visibleWorldBox, worldToScreen } from '../camera/camera';
-import type { Box } from '../geometry/box';
-import { rectCorners, type RectLike } from '../geometry/rect';
+import { boxUnion, type Box } from '../geometry/box';
+import { rectAABB, rectCorners, type RectLike } from '../geometry/rect';
 import {
   getSelectionFrame,
   getSelectionHandles,
@@ -21,6 +21,8 @@ import { CanvasSurface } from './surface';
 
 const SELECTION_COLOR = '#2f6fde';
 const SELECTION_MEMBER_COLOR = 'rgba(47, 111, 222, 0.45)';
+const MARQUEE_FILL = 'rgba(47, 111, 222, 0.08)';
+const FOCUS_GROUP_COLOR = 'rgba(47, 111, 222, 0.6)';
 const HANDLE_FILL = '#ffffff';
 const DEBUG_HANDLE_COLOR = 'rgba(230, 140, 20, 0.9)';
 const DEBUG_AABB_COLOR = 'rgba(214, 51, 108, 0.8)';
@@ -82,7 +84,11 @@ export class Renderer {
       prev.viewport !== next.viewport ||
       prev.background !== next.background;
     const overlayDirty =
-      sceneDirty || prev.selection !== next.selection || prev.debug !== next.debug;
+      sceneDirty ||
+      prev.selection !== next.selection ||
+      prev.debug !== next.debug ||
+      prev.overlay !== next.overlay ||
+      prev.focusGroup !== next.focusGroup;
     if (sceneDirty || overlayDirty) this.invalidate({ scene: sceneDirty, overlay: overlayDirty });
   }
 
@@ -171,8 +177,43 @@ export class Renderer {
       );
     }
     this.drawHandles(state, handles);
+    this.drawFocusGroup(state);
+
+    const marquee = state.overlay.marquee;
+    if (marquee) {
+      const a = worldToScreen(camera, { x: marquee.minX, y: marquee.minY });
+      const b = worldToScreen(camera, { x: marquee.maxX, y: marquee.maxY });
+      ctx.fillStyle = MARQUEE_FILL;
+      ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
+      ctx.strokeStyle = SELECTION_COLOR;
+      ctx.setLineDash([5, 4]);
+      ctx.strokeRect(a.x + 0.5, a.y + 0.5, b.x - a.x, b.y - a.y);
+      ctx.setLineDash([]);
+    }
 
     if (state.debug) this.drawDebug(state);
+  }
+
+  /** Dashed outline around the entered group's members. */
+  private drawFocusGroup(state: AppState): void {
+    const g = state.focusGroup;
+    if (g === null) return;
+    let box: Box | null = null;
+    for (const id of state.scene.order) {
+      const el = state.scene.entities[id];
+      if (!el?.groupIds.includes(g)) continue;
+      const b = rectAABB(el);
+      box = box ? boxUnion(box, b) : b;
+    }
+    if (!box) return;
+    const { ctx } = this.overlay;
+    const pad = SELECTION_PAD_PX * 2;
+    const a = worldToScreen(state.camera, { x: box.minX, y: box.minY });
+    const c = worldToScreen(state.camera, { x: box.maxX, y: box.maxY });
+    ctx.strokeStyle = FOCUS_GROUP_COLOR;
+    ctx.setLineDash([3, 4]);
+    ctx.strokeRect(a.x - pad + 0.5, a.y - pad + 0.5, c.x - a.x + pad * 2, c.y - a.y + pad * 2);
+    ctx.setLineDash([]);
   }
 
   private drawHandles(state: AppState, handles: readonly SelectionHandle[]): void {

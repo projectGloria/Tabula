@@ -17,6 +17,7 @@ import type {
 import type { I18nKey } from '../i18n/en';
 import { t } from '../i18n/t';
 import { useApp } from './app-context';
+import { ArrangeSection } from './ArrangeSection';
 import { useEditorState } from './hooks/useEditorState';
 import {
   CornersRoundedIcon,
@@ -448,12 +449,16 @@ export function StylePanel() {
   if (!view) return null;
 
   const apply = (patch: StylePatch): void => {
-    editor.update((s) => applyStyle(s, patch));
+    // Slider drags coalesce into one undo step; other edits are separate steps.
+    const history = patch.opacity === undefined ? {} : { history: 'style:opacity' };
+    editor.update((s) => applyStyle(s, patch), history);
   };
+  const hasSelection = Object.keys(selection).length > 0;
 
   return (
     <aside className="style-panel" aria-label={t('style.label')}>
       <PanelBody view={view} recent={recent} apply={apply} />
+      {hasSelection && <ArrangeSection />}
     </aside>
   );
 }

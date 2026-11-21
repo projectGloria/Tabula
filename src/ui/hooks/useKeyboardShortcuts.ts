@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { COMMANDS } from '../../core/actions/commands';
 import { isEditableTarget } from '../../core/keymap/keymap';
 import { useApp } from '../app-context';
 
@@ -23,7 +24,7 @@ export function useKeyboardShortcuts(): void {
       const command = app.keymap.match(e);
       if (command === undefined) return;
       e.preventDefault();
-      if (e.repeat) return;
+      if (e.repeat && COMMANDS[command].repeat !== true) return;
       app.runCommand(command);
     };
     window.addEventListener('keydown', onKeyDown);

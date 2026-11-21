@@ -73,7 +73,7 @@ describe('actions', () => {
 
   it('toggles debug and runs commands', () => {
     expect(toggleDebug(base).debug).toBe(true);
-    expect(COMMANDS['tool.rectangle'].run(setSelection(base, [a.id]))).toMatchObject({
+    expect(COMMANDS['tool.rectangle'].run?.(setSelection(base, [a.id]))).toMatchObject({
       activeTool: 'rectangle',
       selection: {},
     });

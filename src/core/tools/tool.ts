@@ -1,6 +1,7 @@
 import type { Point } from '../geometry/vec';
 import type { ElementId } from '../model/types';
 import type { AppState, ToolId } from '../store/app-state';
+import type { UpdateOptions } from '../store/editor';
 
 export type PointerKind = 'mouse' | 'pen' | 'touch';
 
@@ -21,8 +22,11 @@ export interface PointerInput {
 
 export interface ToolContext {
   getState(): AppState;
-  update(fn: (prev: AppState) => AppState): void;
+  update(fn: (prev: AppState) => AppState, options?: UpdateOptions): void;
   hitTest(world: Point): ElementId | undefined;
+  /** Opens a history transaction spanning several pointer gestures (polylines). */
+  begin?(): void;
+  end?(): void;
 }
 
 /** Pointer-driven tool state machine. */
@@ -39,6 +43,7 @@ export interface Tool {
   cancel(ctx: ToolContext): void;
   /** Complete a multi-step gesture (Enter), e.g. a polyline. */
   finish?(ctx: ToolContext): void;
+  onDoubleClick?(ctx: ToolContext, e: PointerInput): void;
 }
 
 /** Screen-pixel distance a press must travel before it counts as a drag. */

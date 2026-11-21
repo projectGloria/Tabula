@@ -143,6 +143,11 @@ export class Keymap {
     return hit ? formatCombo(hit.combo, this.isMac) : undefined;
   }
 
+  /** Display label for an arbitrary combo string (e.g. clipboard keys). */
+  format(combo: string): string {
+    return formatCombo(parseCombo(combo), this.isMac);
+  }
+
   bindings(): readonly KeyBinding[] {
     return this.compiled.map((c) => c.binding);
   }

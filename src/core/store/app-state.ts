@@ -1,7 +1,8 @@
 import { DEFAULT_CAMERA, type Camera, type Viewport } from '../camera/camera';
 import { EMPTY_SCENE } from '../model/scene';
 import { DEFAULT_STYLE } from '../model/style';
-import type { Arrowhead, ElementId, ElementStyle, Scene } from '../model/types';
+import type { Box } from '../geometry/box';
+import type { Arrowhead, ElementId, ElementStyle, GroupId, Scene } from '../model/types';
 
 export type ToolId = 'select' | 'rectangle' | 'diamond' | 'ellipse' | 'line' | 'arrow' | 'freedraw';
 
@@ -20,7 +21,18 @@ export interface AppState {
   readonly styleMemory: StyleMemory;
   /** Custom colors picked this session, most recent first (palette colors excluded). */
   readonly recentColors: readonly string[];
+  /** Group the user has entered by double-click; clicks select inside it. */
+  readonly focusGroup: GroupId | null;
+  /** Transient overlay chrome drawn by tools (marquee, guides, highlights). */
+  readonly overlay: OverlayState;
 }
+
+export interface OverlayState {
+  /** Marquee rectangle in world units. */
+  readonly marquee: Box | null;
+}
+
+export const EMPTY_OVERLAY: OverlayState = { marquee: null };
 
 /** Tools sharing one remembered style: shapes, lines and arrows, freedraw. */
 export type StyleCategory = 'shape' | 'linear' | 'freedraw';
@@ -58,6 +70,8 @@ export function createInitialState(overrides: Partial<AppState> = {}): AppState 
     debug: false,
     styleMemory: DEFAULT_STYLE_MEMORY,
     recentColors: [],
+    focusGroup: null,
+    overlay: EMPTY_OVERLAY,
     ...overrides,
   };
 }
