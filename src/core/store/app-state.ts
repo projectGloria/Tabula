@@ -16,7 +16,18 @@ import type {
 } from '../model/types';
 
 export type ToolId =
-  'select' | 'rectangle' | 'diamond' | 'ellipse' | 'line' | 'arrow' | 'freedraw' | 'text';
+  | 'select'
+  | 'hand'
+  | 'rectangle'
+  | 'diamond'
+  | 'ellipse'
+  | 'line'
+  | 'arrow'
+  | 'freedraw'
+  | 'text'
+  | 'eraser';
+
+export type Theme = 'light' | 'dark';
 
 export type Selection = Readonly<Partial<Record<ElementId, true>>>;
 
@@ -49,6 +60,14 @@ export interface AppState {
   readonly gridStyle: GridStyle;
   /** Snap to other elements' edges and centres. */
   readonly objectSnap: boolean;
+  /** Drawing tools stay active after each element instead of returning to Select. */
+  readonly toolLocked: boolean;
+  /** Canvas and UI theme; dark paints element colours lightness-inverted. */
+  readonly theme: Theme;
+  /** Hides the panels, leaving the canvas and toolbar. */
+  readonly zenMode: boolean;
+  /** Read-only: pan and zoom only. */
+  readonly viewMode: boolean;
 }
 
 export type GridStyle = 'dots' | 'lines';
@@ -66,9 +85,16 @@ export interface OverlayState {
   readonly bindTarget: ElementId | null;
   /** Snap guide lines in world units. */
   readonly guides: readonly Guide[];
+  /** Elements the eraser will delete when the stroke ends (painted faded). */
+  readonly erasing: readonly ElementId[];
 }
 
-export const EMPTY_OVERLAY: OverlayState = { marquee: null, bindTarget: null, guides: [] };
+export const EMPTY_OVERLAY: OverlayState = {
+  marquee: null,
+  bindTarget: null,
+  guides: [],
+  erasing: [],
+};
 
 /** Tools sharing one remembered style: shapes, lines and arrows, freedraw. */
 export type StyleCategory = 'shape' | 'linear' | 'freedraw' | 'text';
@@ -136,6 +162,10 @@ export function createInitialState(overrides: Partial<AppState> = {}): AppState 
     gridSize: 20,
     gridStyle: 'dots',
     objectSnap: false,
+    toolLocked: false,
+    theme: 'light',
+    zenMode: false,
+    viewMode: false,
     ...overrides,
   };
 }

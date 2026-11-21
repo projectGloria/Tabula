@@ -13,7 +13,7 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 | 5   | Text & Bound Labels               | Done   |
 | 6   | Arrow Binding & Snapping          | Done   |
 | 7   | Persistence, Files & Export       | Done   |
-| 8   | UX Polish, A11y & Offline PWA     | —      |
+| 8   | UX Polish, A11y & Offline PWA     | Done   |
 
 ## Decisions
 
@@ -35,6 +35,8 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 - M7a (flagged, not yet confirmed): autosave to IndexedDB, debounced 600 ms, plus a flush on hide/close; thumbnails at most every 8 s. Opening or dropping a `.tabula` file imports it as a **new** drawing. Ctrl+S writes back to the opened file handle (Chromium) or downloads. The camera is stored per drawing in IndexedDB, not in the file. Multi-tab: the last tab to open a drawing becomes its writer; the older tab pauses saving and offers "Keep editing here". IndexedDB unavailable or blocked (4 s timeout) falls back to in-memory.
 
 - M7b (flagged, not yet confirmed): images are PNG/JPEG/WebP/GIF only (no SVG), stored once per SHA-256 in the IndexedDB `files` store and hash-verified on import; unreferenced files are GC'd after a 24 h grace. Images take opacity only, are arrow-bindable, and corner-resize keeps aspect unless Shift. Dropped images land at the drop point; pasted plain text becomes a text element. Export (Ctrl/⌘+Shift+E): PNG 1–3× or SVG, selection/all, padding, background, dark variant (HSL lightness inverted), embedded scene (PNG `tbLa` chunk / SVG `<metadata>`, deflated JSON) that keeps the original colours. Dropping or opening such a PNG/SVG opens it as a new drawing. SVG copy goes to the clipboard as text. SVG text references font names only (no embedded fonts).
+
+- M8 (flagged, not yet confirmed): H hand, E eraser (drag marks elements faded, release deletes in one undo step; whole groups; locked skipped). K toggles tool lock, which keeps any creation tool active. Theme (Alt+Shift+D) follows the system until picked, then is stored in localStorage `tabula.theme`; dark renders the canvas with HSL-inverted colours (stored colours unchanged). Zen (Alt+Z) hides toolbar and panels; view mode (Alt+R) is read-only: hand tool only, no selection, paste, image insert or context menu. Zoom: Ctrl/⌘ +/−/0, Shift+1 fit all (max 100%), Shift+2 fit selection (max 300%); "Back to content" appears when nothing is on screen. Ctrl/⌘+/ opens the command palette, ? the shortcuts list. Touch: two-finger pinch zooms and pans; once a pen has been used, a single finger pans (palm rejection). ≤ 720 px: toolbar at the bottom, style panel as a collapsible sheet. PWA: build emits `sw.js` (cache-first, versioned by asset names; old caches dropped) and offers "Reload" when an update is waiting; dev mode never registers it.
 
 ## Locked invariants
 
@@ -100,6 +102,9 @@ src/core/render     paint-scene.ts (shared paint loop, rasterize for thumbnails/
 src/core/io         image-files.ts (sha256, validation, sizing), png-chunk.ts, embed.ts (scene in PNG/SVG),
                     export.ts (scope, dark variant, sceneToSvg); actions/image-actions.ts
 src/app             images.ts (ImageLibrary: bitmaps, files store), exporter.ts; ui/ExportDialog.tsx
+src/core/tools      hand-tool, eraser-tool; core/render/invert.ts (invertLightness, memoized darkColor)
+src/app             theme.ts (theme persistence + theme-color), service-worker.ts; vite.config.ts emits sw.js
+src/ui              CommandPalette, ShortcutsDialog, ViewControls (zoom, back-to-content, mode exit)
 src/i18n            en.ts (string table), t.ts
 src/app             main.tsx (entry), create-app.ts (wires services, app effects), App.tsx, text-setup.ts,
                     persistence.ts (Persistence: session + disk), files.ts (pickers), ui-bus.ts (dialogs, notices)
@@ -127,17 +132,16 @@ Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
 - Elbow arrows are out of scope. Bound arrows do not route around obstacles.
 - At opacity below 100% a solid fill and its outline overlap and the overlap looks slightly darker (layers are composited separately).
 - The eyedropper uses the browser EyeDropper API (Chromium only) and is hidden elsewhere.
-- The style panel has no keyboard shortcuts yet (M8).
+- The style panel has no per-option keyboard shortcuts (it is Tab-navigable).
 - Font files are not bundled; without them installed locally, text falls back to system fonts.
 - Rotated text is edited in a rotated textarea; IME composition is untested.
-- Tool lock is in M8: shape and line tools return to Select after each shape (the pencil stays active).
 - The debug overlay text is drawn in English via `t()` and is not RTL-aware.
-- No Playwright E2E yet (M8).
+- No Playwright E2E yet (install needs approval). The service worker caches only what the build lists, so font files must be in the bundle to work offline.
 
 ## Commands
 
 `npm run dev` · `npm run typecheck` · `npm test` · `npm run lint` · `npm run format` · `npm run build`
 
-## Next: Milestone 8
+## Next
 
-Hand tool, eraser, tool lock; dark mode; zen/view modes; zoom fit/selection/reset; command palette; shortcuts modal; responsive layout; palm rejection; ARIA pass; PWA; README.
+All milestones done. Open: font files download, Playwright E2E, confirmation of the flagged decisions above.

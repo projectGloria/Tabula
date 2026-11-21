@@ -102,7 +102,7 @@ export function categoryOfType(type: ElementType): StyleCategory {
 
 /** The element type a drawing tool creates, or null for non-drawing tools. */
 export function toolElementType(tool: ToolId): ElementType | null {
-  return tool === 'select' ? null : tool;
+  return tool === 'select' || tool === 'hand' || tool === 'eraser' ? null : tool;
 }
 
 function fullStyleOf(el: SceneElement, memory: StyleMemory): FullStyle {

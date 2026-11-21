@@ -600,6 +600,8 @@ export function StylePanel() {
   const activeTool = useEditorState((s) => s.activeTool);
   const styleMemory = useEditorState((s) => s.styleMemory);
   const recent = useEditorState((s) => s.recentColors);
+  // Narrow screens show the panel as a bottom sheet that can be collapsed.
+  const [collapsed, setCollapsed] = useState(false);
 
   const view = useMemo(
     () => getStyleView({ ...editor.getState(), scene, selection, activeTool, styleMemory }),
@@ -617,9 +619,24 @@ export function StylePanel() {
   const showVertical = selectedIds(state).some((id) => boundTextOf(state.scene, id) !== undefined);
 
   return (
-    <aside className="style-panel" aria-label={t('style.label')}>
-      <PanelBody view={view} recent={recent} apply={apply} showVertical={showVertical} />
-      {hasSelection && <ArrangeSection />}
+    <aside
+      className={collapsed ? 'style-panel collapsed' : 'style-panel'}
+      aria-label={t('style.label')}
+    >
+      <button
+        type="button"
+        className="style-panel-toggle"
+        aria-expanded={!collapsed}
+        onClick={() => {
+          setCollapsed((c) => !c);
+        }}
+      >
+        {t('styles.toggle')}
+      </button>
+      <div className="style-panel-body">
+        <PanelBody view={view} recent={recent} apply={apply} showVertical={showVertical} />
+        {hasSelection && <ArrangeSection />}
+      </div>
     </aside>
   );
 }

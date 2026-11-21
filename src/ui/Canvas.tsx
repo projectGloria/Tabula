@@ -28,6 +28,15 @@ interface PanGesture {
   last: Point;
 }
 
+interface Pinch {
+  readonly a: number;
+  readonly b: number;
+  mid: Point;
+  dist: number;
+}
+
+const midpoint = (p: Point, q: Point): Point => ({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 });
+
 export function Canvas() {
   const app = useApp();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -55,6 +64,13 @@ export function Canvas() {
     });
     let spaceHeld = false;
     let pan: PanGesture | null = null;
+    // Touch: two fingers pinch-zoom and pan. Once a pen has been used, single
+    // touches pan instead of drawing (palm rejection).
+    const touches = new Map<number, Point>();
+    let pinch: Pinch | null = null;
+    // Pointers left over from a pinch; ignored until lifted.
+    const ignored = new Set<number>();
+    let penSeen = false;
     // Pointers whose gesture is open as a history transaction.
     const gestures = new Set<number>();
     const endGesture = (pointerId: number): void => {
@@ -137,9 +153,64 @@ export function Canvas() {
       longPress = null;
     };
 
+    /** Second finger down: abort whatever the first one started and pinch. */
+    const startPinch = (): void => {
+      clearLongPress();
+      activeTool().cancel(toolContext);
+      for (const id of [...gestures]) endGesture(id);
+      pan = null;
+      const [a, b] = [...touches.keys()];
+      const pa = a === undefined ? undefined : touches.get(a);
+      const pb = b === undefined ? undefined : touches.get(b);
+      if (a === undefined || b === undefined || !pa || !pb) return;
+      pinch = { a, b, mid: midpoint(pa, pb), dist: Math.hypot(pa.x - pb.x, pa.y - pb.y) };
+    };
+    const movePinch = (p: Pinch): void => {
+      const pa = touches.get(p.a);
+      const pb = touches.get(p.b);
+      if (!pa || !pb) return;
+      const mid = midpoint(pa, pb);
+      const dist = Math.hypot(pa.x - pb.x, pa.y - pb.y);
+      const dx = mid.x - p.mid.x;
+      const dy = mid.y - p.mid.y;
+      const ratio = p.dist > 0 && dist > 0 ? dist / p.dist : 1;
+      p.mid = mid;
+      p.dist = dist;
+      editor.update((s) => zoomCameraAt(panCamera(s, dx, dy), mid, s.camera.zoom * ratio));
+    };
+    /** Removes a touch; true when the event belonged to a pinch (or its leftovers). */
+    const releaseTouch = (pointerId: number): boolean => {
+      touches.delete(pointerId);
+      if (ignored.delete(pointerId)) return true;
+      if (pinch && (pinch.a === pointerId || pinch.b === pointerId)) {
+        const other = pinch.a === pointerId ? pinch.b : pinch.a;
+        if (touches.has(other)) ignored.add(other);
+        pinch = null;
+        return true;
+      }
+      return false;
+    };
+
     const onPointerDown = (e: PointerEvent): void => {
       overlay.focus({ preventScroll: true });
       overlay.setPointerCapture(e.pointerId);
+      if (e.pointerType === 'pen') penSeen = true;
+      if (e.pointerType === 'touch') {
+        touches.set(e.pointerId, toScreen(e));
+        if (pinch || touches.size > 2) {
+          ignored.add(e.pointerId);
+          return;
+        }
+        if (touches.size === 2) {
+          startPinch();
+          return;
+        }
+        if (penSeen) {
+          pan = { pointerId: e.pointerId, last: toScreen(e) };
+          updateCursor();
+          return;
+        }
+      }
       if (e.button === 1 || (e.button === 0 && spaceHeld)) {
         e.preventDefault();
         pan ??= { pointerId: e.pointerId, last: toScreen(e) };
@@ -168,6 +239,14 @@ export function Canvas() {
     const onPointerMove = (e: PointerEvent): void => {
       const screenPt = toScreen(e);
       ui.pointerWorld = screenToWorld(editor.getState().camera, screenPt);
+      if (e.pointerType === 'touch' && touches.has(e.pointerId)) {
+        touches.set(e.pointerId, screenPt);
+        if (ignored.has(e.pointerId)) return;
+        if (pinch) {
+          if (pinch.a === e.pointerId || pinch.b === e.pointerId) movePinch(pinch);
+          return;
+        }
+      }
       if (
         longPress?.id === e.pointerId &&
         Math.hypot(screenPt.x - longPress.start.x, screenPt.y - longPress.start.y) >
@@ -194,6 +273,7 @@ export function Canvas() {
     const onPointerUp = (e: PointerEvent): void => {
       if (longPress?.id === e.pointerId) clearLongPress();
       if (overlay.hasPointerCapture(e.pointerId)) overlay.releasePointerCapture(e.pointerId);
+      if (e.pointerType === 'touch' && releaseTouch(e.pointerId)) return;
       if (pan) {
         if (pan.pointerId === e.pointerId) {
           pan = null;
@@ -207,6 +287,7 @@ export function Canvas() {
     };
     const onPointerCancel = (e: PointerEvent): void => {
       if (longPress?.id === e.pointerId) clearLongPress();
+      if (e.pointerType === 'touch' && releaseTouch(e.pointerId)) return;
       if (pan?.pointerId === e.pointerId) {
         pan = null;
         updateCursor();

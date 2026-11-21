@@ -2,7 +2,13 @@ import { boxExpand, boxHeight, boxUnion, boxWidth, type Box } from '../geometry/
 import { elementBounds } from '../geometry/element-bounds';
 import type { ElementId, Scene } from '../model/types';
 import { boundTextOf, isTextContainer } from '../text/bound';
-import { paintElement, paintImage, paintText, type ImageSource } from './draw-element';
+import {
+  paintElement,
+  paintImage,
+  paintText,
+  type ColorMap,
+  type ImageSource,
+} from './draw-element';
 import { SketchCache } from './sketch/cache';
 
 export interface PaintOptions {
@@ -12,7 +18,13 @@ export interface PaintOptions {
   readonly skip?: ElementId | null;
   /** Decoded images; without it images paint as placeholders. */
   readonly images?: ImageSource | null;
+  /** Colour transform for strokes, fills and text (images are never mapped). */
+  readonly color?: ColorMap;
+  /** Elements painted faded (marked by the eraser). */
+  readonly faded?: ReadonlySet<ElementId>;
 }
+
+const FADED_ALPHA = 0.25;
 
 /**
  * Paints `ids` (bottom-to-top) into a world-space context. Bound labels are
@@ -26,24 +38,30 @@ export function paintElements(
   opts: PaintOptions,
 ): void {
   const skip = opts.skip ?? null;
+  const color = opts.color ?? ((c: string) => c);
+  const faded = opts.faded;
   for (const id of ids) {
     const el = scene.entities[id];
     if (!el) continue;
+    const fade = faded?.has(id) === true;
+    if (fade) {
+      ctx.save();
+      ctx.globalAlpha = FADED_ALPHA;
+    }
     if (el.type === 'text') {
-      if (el.containerId === null && el.id !== skip) paintText(ctx, el);
-      continue;
-    }
-    if (el.type === 'image') {
+      if (el.containerId === null && el.id !== skip) paintText(ctx, el, null, color);
+    } else if (el.type === 'image') {
       paintImage(ctx, el, opts.images ?? null);
-      continue;
-    }
-    paintElement(ctx, el, cache);
-    if (isTextContainer(el)) {
-      const label = boundTextOf(scene, el.id);
-      if (label && label.id !== skip) {
-        paintText(ctx, label, el.type === 'arrow' ? opts.labelBackdrop : null);
+    } else {
+      paintElement(ctx, el, cache, color);
+      if (isTextContainer(el)) {
+        const label = boundTextOf(scene, el.id);
+        if (label && label.id !== skip) {
+          paintText(ctx, label, el.type === 'arrow' ? opts.labelBackdrop : null, color);
+        }
       }
     }
+    if (fade) ctx.restore();
   }
 }
 

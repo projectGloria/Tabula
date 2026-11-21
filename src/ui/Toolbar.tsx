@@ -1,5 +1,5 @@
 import { useSyncExternalStore, type ReactNode } from 'react';
-import type { CommandId } from '../core/actions/commands';
+import { COMMANDS, type CommandId } from '../core/actions/commands';
 import type { ToolId } from '../core/store/app-state';
 import type { I18nKey } from '../i18n/en';
 import { t } from '../i18n/t';
@@ -9,9 +9,12 @@ import {
   ArrowIcon,
   DiamondIcon,
   EllipseIcon,
+  EraserIcon,
+  HandIcon,
   ImageIcon,
   LineIcon,
   PencilIcon,
+  PinIcon,
   RectangleIcon,
   RedoIcon,
   SelectIcon,
@@ -27,6 +30,7 @@ interface ToolButtonDef {
 }
 
 const TOOL_BUTTONS: readonly ToolButtonDef[] = [
+  { tool: 'hand', command: 'tool.hand', labelKey: 'tool.hand', icon: <HandIcon /> },
   { tool: 'select', command: 'tool.select', labelKey: 'tool.select', icon: <SelectIcon /> },
   {
     tool: 'rectangle',
@@ -40,6 +44,7 @@ const TOOL_BUTTONS: readonly ToolButtonDef[] = [
   { tool: 'line', command: 'tool.line', labelKey: 'tool.line', icon: <LineIcon /> },
   { tool: 'freedraw', command: 'tool.freedraw', labelKey: 'tool.freedraw', icon: <PencilIcon /> },
   { tool: 'text', command: 'tool.text', labelKey: 'tool.text', icon: <TextIcon /> },
+  { tool: 'eraser', command: 'tool.eraser', labelKey: 'tool.eraser', icon: <EraserIcon /> },
 ];
 
 function useHistoryFlag(read: () => boolean): boolean {
@@ -57,7 +62,7 @@ function HistoryButton({
   icon: ReactNode;
 }) {
   const app = useApp();
-  const label = command === 'history.undo' ? t('command.undo') : t('command.redo');
+  const label = t(COMMANDS[command].labelKey);
   const key = app.keymap.shortcutFor(command);
   const title = key === undefined ? label : t('shortcut.withKey', { label, key });
   return (
@@ -79,11 +84,30 @@ function HistoryButton({
 export function Toolbar() {
   const app = useApp();
   const activeTool = useEditorState((s) => s.activeTool);
+  const toolLocked = useEditorState((s) => s.toolLocked);
+  const lockKey = app.keymap.shortcutFor('tool.lock');
+  const lockTitle =
+    lockKey === undefined
+      ? t('tool.lock')
+      : t('shortcut.withKey', { label: t('tool.lock'), key: lockKey });
   const canUndo = useHistoryFlag(() => app.editor.history.canUndo);
   const canRedo = useHistoryFlag(() => app.editor.history.canRedo);
 
   return (
     <div className="toolbar" role="toolbar" aria-label={t('toolbar.label')}>
+      <button
+        type="button"
+        className="tool-button tool-lock"
+        aria-label={lockTitle}
+        aria-pressed={toolLocked}
+        title={lockTitle}
+        onClick={() => {
+          app.runCommand('tool.lock');
+        }}
+      >
+        <PinIcon />
+      </button>
+      <div className="toolbar-sep" role="separator" />
       {TOOL_BUTTONS.map((b) => {
         const label = t(b.labelKey);
         const key = app.keymap.shortcutFor(b.command);

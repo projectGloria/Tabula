@@ -267,3 +267,47 @@ export function ImageIcon() {
     </Icon>
   );
 }
+
+export function HandIcon() {
+  return (
+    <Icon>
+      <path d="M8 12.5V6.8a1.4 1.4 0 0 1 2.8 0V11" />
+      <path d="M10.8 10.5V5.4a1.4 1.4 0 0 1 2.8 0v5.1" />
+      <path d="M13.6 10.6V6.6a1.4 1.4 0 0 1 2.8 0v5.6" />
+      <path d="M16.4 9.4a1.4 1.4 0 0 1 2.8 0V14a6 6 0 0 1-6 6h-1.4a5.5 5.5 0 0 1-4.3-2.1l-3-3.9a1.5 1.5 0 0 1 2.3-1.9L8 13.6" />
+    </Icon>
+  );
+}
+
+export function EraserIcon() {
+  return (
+    <Icon>
+      <path d="M14.2 4.8a1.8 1.8 0 0 1 2.5 0l3 3a1.8 1.8 0 0 1 0 2.5L11.5 18.5H7.8l-3.3-3.3a1.8 1.8 0 0 1 0-2.5z" />
+      <path d="M9.6 9.4l5.5 5.5M11.5 18.5H20" />
+    </Icon>
+  );
+}
+
+export function PinIcon() {
+  return (
+    <Icon>
+      <path d="M9 4.5h6M10 4.5v5.2L7 13h10l-3-3.3V4.5M12 13v6.5" />
+    </Icon>
+  );
+}
+
+export function MinusIcon() {
+  return (
+    <Icon>
+      <path d="M6 12h12" />
+    </Icon>
+  );
+}
+
+export function PlusIcon() {
+  return (
+    <Icon>
+      <path d="M6 12h12M12 6v12" />
+    </Icon>
+  );
+}

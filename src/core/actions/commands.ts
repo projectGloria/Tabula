@@ -5,11 +5,22 @@ import { clearSelection, setTool, toggleDebug } from './actions';
 import { closeLinearEdit, deleteLinearPoints, openLinearEdit } from './linear-actions';
 import { canEditSelectedText, editSelectedText } from './text-actions';
 import {
+  contentOffscreen,
+  scrollToContent,
   setGridSize,
   setGridStyle,
+  setTheme,
+  setViewMode,
   toggleGrid,
   toggleGridSnap,
   toggleObjectSnap,
+  toggleToolLock,
+  toggleZen,
+  zoomIn,
+  zoomOut,
+  zoomReset,
+  zoomToFit,
+  zoomToSelection,
 } from './view-actions';
 import {
   alignSelection,
@@ -40,6 +51,8 @@ export interface Command {
   readonly devOnly?: boolean;
   /** History coalescing key (repeated nudges merge into one undo step). */
   readonly historyKey?: string;
+  /** Can run in view mode (read-only). Everything else is refused there. */
+  readonly allowInView?: boolean;
   /** Fires again on key auto-repeat. */
   readonly repeat?: boolean;
   /** Whether the command can run now (menus grey it out otherwise). */
@@ -110,11 +123,31 @@ export type CommandId =
   | 'file.drawings'
   | 'file.export'
   | 'insert.image'
+  | 'tool.hand'
+  | 'tool.eraser'
+  | 'tool.lock'
+  | 'view.zen'
+  | 'view.mode'
+  | 'view.theme'
+  | 'view.content'
+  | 'zoom.in'
+  | 'zoom.out'
+  | 'zoom.reset'
+  | 'zoom.fit'
+  | 'zoom.selection'
+  | 'help.palette'
+  | 'help.shortcuts'
   | 'debug.toggle';
+
+/** Whether `cmd` may run in `state` (view mode refuses editing commands). */
+export function commandAllowed(state: AppState, cmd: Command): boolean {
+  if (state.viewMode && cmd.allowInView !== true) return false;
+  return !cmd.enabled || cmd.enabled(state);
+}
 
 /** Runs a command against an editor (shared by keymap, menus and palette). */
 export function executeCommand(editor: Editor, cmd: Command): void {
-  if (cmd.enabled && !cmd.enabled(editor.getState())) return;
+  if (!commandAllowed(editor.getState(), cmd)) return;
   if (cmd.perform) {
     cmd.perform(editor);
     return;
@@ -207,6 +240,7 @@ export const COMMANDS: Readonly<Record<CommandId, Command>> = {
   },
   'selection.clear': {
     id: 'selection.clear',
+    allowInView: true,
     labelKey: 'command.deselect',
     // Escape leaves the point editor before it clears the selection.
     run: (s) => (s.linearEdit ? closeLinearEdit(s) : deselect(s)),
@@ -315,6 +349,7 @@ export const COMMANDS: Readonly<Record<CommandId, Command>> = {
   },
   'view.grid': {
     id: 'view.grid',
+    allowInView: true,
     labelKey: 'command.grid',
     checked: (s) => s.gridVisible,
     run: toggleGrid,
@@ -342,17 +377,95 @@ export const COMMANDS: Readonly<Record<CommandId, Command>> = {
     checked: (s) => s.objectSnap,
     run: toggleObjectSnap,
   },
-  'file.new': { id: 'file.new', labelKey: 'command.newDrawing' },
-  'file.open': { id: 'file.open', labelKey: 'command.open' },
-  'file.save': { id: 'file.save', labelKey: 'command.save' },
-  'file.saveAs': { id: 'file.saveAs', labelKey: 'command.saveAs' },
-  'file.drawings': { id: 'file.drawings', labelKey: 'command.drawings' },
-  'file.export': { id: 'file.export', labelKey: 'command.export' },
+  'file.new': { id: 'file.new', labelKey: 'command.newDrawing', allowInView: true },
+  'file.open': { id: 'file.open', labelKey: 'command.open', allowInView: true },
+  'file.save': { id: 'file.save', labelKey: 'command.save', allowInView: true },
+  'file.saveAs': { id: 'file.saveAs', labelKey: 'command.saveAs', allowInView: true },
+  'file.drawings': { id: 'file.drawings', labelKey: 'command.drawings', allowInView: true },
+  'file.export': { id: 'file.export', labelKey: 'command.export', allowInView: true },
   'insert.image': { id: 'insert.image', labelKey: 'command.insertImage' },
+  'tool.hand': {
+    id: 'tool.hand',
+    labelKey: 'command.toolHand',
+    allowInView: true,
+    run: (s) => setTool(s, 'hand'),
+  },
+  'tool.eraser': drawTool('tool.eraser', 'command.toolEraser', 'eraser'),
+  'tool.lock': {
+    id: 'tool.lock',
+    labelKey: 'command.toolLock',
+    checked: (s) => s.toolLocked,
+    run: toggleToolLock,
+  },
+  'view.zen': {
+    id: 'view.zen',
+    labelKey: 'command.zen',
+    allowInView: true,
+    checked: (s) => s.zenMode,
+    run: toggleZen,
+  },
+  'view.mode': {
+    id: 'view.mode',
+    labelKey: 'command.viewMode',
+    allowInView: true,
+    enabled: (s) => s.editingText === null,
+    checked: (s) => s.viewMode,
+    run: (s) => setViewMode(s, !s.viewMode),
+  },
+  'view.theme': {
+    id: 'view.theme',
+    labelKey: 'command.darkTheme',
+    allowInView: true,
+    checked: (s) => s.theme === 'dark',
+    run: (s) => setTheme(s, s.theme === 'dark' ? 'light' : 'dark'),
+  },
+  'view.content': {
+    id: 'view.content',
+    labelKey: 'command.backToContent',
+    allowInView: true,
+    enabled: contentOffscreen,
+    run: scrollToContent,
+  },
+  'zoom.in': {
+    id: 'zoom.in',
+    labelKey: 'command.zoomIn',
+    allowInView: true,
+    repeat: true,
+    run: zoomIn,
+  },
+  'zoom.out': {
+    id: 'zoom.out',
+    labelKey: 'command.zoomOut',
+    allowInView: true,
+    repeat: true,
+    run: zoomOut,
+  },
+  'zoom.reset': {
+    id: 'zoom.reset',
+    labelKey: 'command.zoomReset',
+    allowInView: true,
+    run: zoomReset,
+  },
+  'zoom.fit': {
+    id: 'zoom.fit',
+    labelKey: 'command.zoomFit',
+    allowInView: true,
+    enabled: (s) => s.scene.order.length > 0,
+    run: zoomToFit,
+  },
+  'zoom.selection': {
+    id: 'zoom.selection',
+    labelKey: 'command.zoomSelection',
+    enabled: hasSelection,
+    run: zoomToSelection,
+  },
+  'help.palette': { id: 'help.palette', labelKey: 'command.palette', allowInView: true },
+  'help.shortcuts': { id: 'help.shortcuts', labelKey: 'command.shortcuts', allowInView: true },
   'debug.toggle': {
     id: 'debug.toggle',
     labelKey: 'command.toggleDebug',
     devOnly: true,
+    allowInView: true,
     run: toggleDebug,
   },
 };

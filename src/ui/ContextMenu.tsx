@@ -57,7 +57,14 @@ export function ContextMenu() {
   const [pos, setPos] = useState<Point | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => app.ui.onContextMenu(setAt), [app]);
+  useEffect(
+    () =>
+      app.ui.onContextMenu((p) => {
+        // View mode is read-only: no editing menu.
+        if (!app.editor.getState().viewMode) setAt(p);
+      }),
+    [app],
+  );
 
   // Keep the menu inside the viewport.
   useLayoutEffect(() => {

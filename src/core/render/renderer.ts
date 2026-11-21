@@ -20,6 +20,7 @@ import type { ImageSource } from './draw-element';
 import { paintElements } from './paint-scene';
 import { SketchCache } from './sketch/cache';
 import { FpsMeter } from './fps-meter';
+import { darkColor } from './invert';
 import { CanvasSurface } from './surface';
 
 const SELECTION_COLOR = '#2f6fde';
@@ -36,6 +37,11 @@ const GUIDE_COLOR = '#e0457b';
 const POINT_SELECTED_FILL = '#2f6fde';
 /** Grid spacing doubles until it is at least this many screen px. */
 const MIN_GRID_PX = 8;
+
+/** The canvas colour as painted (inverted in the dark theme). */
+export function canvasBackground(state: AppState): string {
+  return state.theme === 'dark' ? darkColor(state.background) : state.background;
+}
 
 export interface DebugLabels {
   fps(value: number): string;
@@ -93,6 +99,8 @@ export class Renderer {
       prev.camera !== next.camera ||
       prev.viewport !== next.viewport ||
       prev.background !== next.background ||
+      prev.theme !== next.theme ||
+      prev.overlay.erasing !== next.overlay.erasing ||
       prev.editingText !== next.editingText ||
       prev.gridVisible !== next.gridVisible ||
       prev.gridSize !== next.gridSize ||
@@ -145,9 +153,11 @@ export class Renderer {
     const dpr = this.scene.pixelRatio;
     const { camera } = state;
     this.scene.clear();
-    ctx.fillStyle = state.background;
+    const dark = state.theme === 'dark';
+    const background = canvasBackground(state);
+    ctx.fillStyle = background;
     ctx.fillRect(0, 0, state.viewport.width, state.viewport.height);
-    if (state.gridVisible) drawGrid(ctx, state);
+    if (state.gridVisible) drawGrid(ctx, state, background);
 
     const view = visibleWorldBox(camera, state.viewport);
     const candidates = this.index.queryBox(view);
@@ -157,10 +167,13 @@ export class Renderer {
 
     const z = camera.zoom * dpr;
     ctx.setTransform(z, 0, 0, z, -camera.x * z, -camera.y * z);
+    const erasing = state.overlay.erasing;
     paintElements(ctx, state.scene, visible, this.sketches, {
-      labelBackdrop: state.background,
+      labelBackdrop: background,
       skip: state.editingText,
       images: this.images,
+      ...(dark ? { color: darkColor } : {}),
+      ...(erasing.length > 0 ? { faded: new Set(erasing) } : {}),
     });
     this.sketches.prune(state.scene);
   }
@@ -416,14 +429,14 @@ export class Renderer {
 }
 
 /** Dots or lines every `gridSize` world units, thinned out when zoomed far out. */
-function drawGrid(ctx: CanvasRenderingContext2D, state: AppState): void {
+function drawGrid(ctx: CanvasRenderingContext2D, state: AppState, background: string): void {
   const { camera, viewport } = state;
   let step = state.gridSize;
   while (step * camera.zoom < MIN_GRID_PX) step *= 2;
   const view = visibleWorldBox(camera, viewport);
   const x0 = Math.floor(view.minX / step) * step;
   const y0 = Math.floor(view.minY / step) * step;
-  const dark = isDark(state.background);
+  const dark = isDark(background);
   ctx.save();
   if (state.gridStyle === 'lines') {
     ctx.lineWidth = 1;

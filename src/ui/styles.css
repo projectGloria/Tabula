@@ -22,8 +22,25 @@
   color: var(--ui-fg);
 }
 
+:root[data-theme='dark'] {
+  --ui-bg: #22211e;
+  --ui-fg: #ecebe6;
+  --ui-muted: #a19d93;
+  --ui-border: #3a3833;
+  --ui-hover: #2e2d29;
+  --ui-active-bg: #23385f;
+  --ui-active-fg: #b9cff7;
+  --ui-shadow: 0 2px 10px rgb(0 0 0 / 40%);
+  --ui-danger: #f2a49c;
+  --ui-ok: #6fcf97;
+  --ui-warn: #e8b84a;
+
+  color-scheme: dark;
+}
+
+/* Before the theme script runs, follow the system. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --ui-bg: #22211e;
     --ui-fg: #ecebe6;
     --ui-muted: #a19d93;
@@ -36,6 +53,10 @@
     --ui-ok: #6fcf97;
     --ui-warn: #e8b84a;
   }
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
 }
 
 *,
@@ -865,4 +886,264 @@ body {
 .button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* --- Toolbar extras ----------------------------------------------------- */
+
+.tool-lock[aria-pressed='true'] {
+  background: var(--ui-active-bg);
+  color: var(--ui-active-fg);
+}
+
+/* --- Zoom controls, back-to-content, mode exit ------------------------- */
+
+.zoom-controls {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--ui-shadow);
+}
+
+.zoom-level {
+  min-width: 56px;
+  height: 36px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ui-fg);
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.zoom-level:hover {
+  background: var(--ui-hover);
+}
+
+.zoom-level:focus-visible,
+.style-panel-toggle:focus-visible,
+.palette-input:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+
+.button.pill {
+  border-radius: 999px;
+  box-shadow: var(--ui-shadow);
+}
+
+.back-to-content {
+  position: absolute;
+  bottom: 64px;
+  left: 50%;
+  z-index: 10;
+  transform: translateX(-50%);
+}
+
+.mode-exit {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 16;
+}
+
+/* --- Command palette ---------------------------------------------------- */
+
+.palette-dialog {
+  width: min(520px, calc(100vw - 24px));
+  align-self: flex-start;
+  margin-top: 12vh;
+}
+
+.palette-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--ui-bg);
+  color: var(--ui-fg);
+  font: inherit;
+  font-size: 14px;
+}
+
+.palette-list {
+  max-height: min(50vh, 360px);
+  margin: 8px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.palette-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.palette-item.active {
+  background: var(--ui-active-bg);
+  color: var(--ui-active-fg);
+}
+
+.palette-item kbd,
+.shortcut-row kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--ui-border);
+  border-radius: 4px;
+  color: var(--ui-muted);
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.palette-empty {
+  padding: 8px 10px;
+}
+
+/* --- Shortcuts ---------------------------------------------------------- */
+
+.shortcuts-dialog {
+  width: min(860px, calc(100vw - 24px));
+}
+
+.shortcuts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px 24px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.shortcuts-group h3 {
+  margin: 8px 0 4px;
+  color: var(--ui-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.shortcuts-group dl {
+  margin: 0;
+}
+
+.shortcut-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--ui-border);
+  font-size: 13px;
+}
+
+.shortcut-row dt {
+  flex: 1;
+}
+
+.shortcut-row dd {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  margin: 0;
+}
+
+/* --- Style panel sheet toggle (narrow screens only) ---------------------- */
+
+.style-panel-toggle {
+  display: none;
+}
+
+.style-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* --- Narrow screens ------------------------------------------------------ */
+
+@media (width <= 720px) {
+  .toolbar {
+    top: auto;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    left: 8px;
+    right: 8px;
+    max-width: none;
+    transform: none;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tool-button {
+    flex: none;
+    width: 40px;
+    height: 40px;
+  }
+
+  .zoom-controls {
+    top: 60px;
+    bottom: auto;
+    left: auto;
+    right: 12px;
+  }
+
+  .back-to-content {
+    bottom: 76px;
+  }
+
+  .notices {
+    bottom: 76px;
+  }
+
+  .style-panel {
+    top: auto;
+    bottom: 72px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: 42vh;
+    padding: 8px 12px;
+  }
+
+  .style-panel-toggle {
+    display: block;
+    flex: none;
+    width: 100%;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ui-muted);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .style-panel.collapsed .style-panel-body {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .palette-item,
+  .tool-button,
+  .menu-item {
+    transition: background-color 80ms ease-out;
+  }
 }

@@ -21,6 +21,11 @@ export function setTool(state: AppState, tool: ToolId): AppState {
   return state.activeTool === tool ? state : { ...state, activeTool: tool };
 }
 
+/** After a drawing tool creates an element: back to Select unless the tool is locked. */
+export function afterCreate(state: AppState): AppState {
+  return state.toolLocked ? state : setTool(state, 'select');
+}
+
 export function toggleDebug(state: AppState): AppState {
   return { ...state, debug: !state.debug };
 }

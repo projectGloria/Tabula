@@ -5,7 +5,7 @@ import {
   useSyncExternalStore,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
-import { COMMANDS, type CommandId } from '../core/actions/commands';
+import { COMMANDS, commandAllowed, type CommandId } from '../core/actions/commands';
 import type { SaveStatus } from '../core/persist/session';
 import type { I18nKey } from '../i18n/en';
 import { t } from '../i18n/t';
@@ -24,6 +24,14 @@ const ENTRIES: readonly Entry[] = [
   'sep',
   'insert.image',
   'file.export',
+  'sep',
+  'view.theme',
+  'view.zen',
+  'view.mode',
+  'view.grid',
+  'sep',
+  'help.palette',
+  'help.shortcuts',
 ];
 
 const STATUS_KEYS: Record<SaveStatus, I18nKey | null> = {
@@ -40,6 +48,7 @@ export function MainMenu() {
   const app = useApp();
   const { session } = app.persistence;
   const info = useSyncExternalStore(session.subscribe, session.getInfo);
+  const state = useSyncExternalStore(app.editor.subscribe, app.editor.getState);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -109,12 +118,16 @@ export function MainMenu() {
           {ENTRIES.map((entry, i) => {
             if (entry === 'sep') return <div key={`sep${String(i)}`} className="menu-sep" />;
             const key = app.keymap.shortcutFor(entry);
+            const cmd = COMMANDS[entry];
+            const checked = cmd.checked?.(state);
             return (
               <button
                 key={entry}
                 type="button"
-                role="menuitem"
-                className="menu-item"
+                role={checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+                aria-checked={checked}
+                disabled={!commandAllowed(state, cmd)}
+                className={checked === true ? 'menu-item checked' : 'menu-item'}
                 onClick={() => {
                   setOpen(false);
                   app.runCommand(entry);

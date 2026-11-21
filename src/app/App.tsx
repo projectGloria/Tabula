@@ -13,6 +13,10 @@ import { useKeyboardShortcuts } from '../ui/hooks/useKeyboardShortcuts';
 import { StylePanel } from '../ui/StylePanel';
 import { TextEditor } from '../ui/TextEditor';
 import { Toolbar } from '../ui/Toolbar';
+import { CommandPalette } from '../ui/CommandPalette';
+import { ShortcutsDialog } from '../ui/ShortcutsDialog';
+import { ModeExit, ViewControls } from '../ui/ViewControls';
+import { useEditorState } from '../ui/hooks/useEditorState';
 import type { AppServices } from './create-app';
 
 function Shell() {
@@ -21,17 +25,25 @@ function Shell() {
   useFileDrop();
   const app = useApp();
   const dialog = useSyncExternalStore(app.ui.dialog.subscribe, app.ui.dialog.get);
+  const zen = useEditorState((s) => s.zenMode);
+  const view = useEditorState((s) => s.viewMode);
+  // Zen hides the panels; view mode hides every editing control.
+  const chrome = !zen && !view;
   return (
-    <main className="app">
+    <main className={view ? 'app view-mode' : zen ? 'app zen-mode' : 'app'}>
       <Canvas />
       <TextEditor />
-      <Toolbar />
-      <StylePanel />
+      {chrome && <Toolbar />}
+      {chrome && <StylePanel />}
       <ContextMenu />
-      <MainMenu />
+      {!zen && <MainMenu />}
+      {!zen && <ViewControls />}
+      <ModeExit />
       <Notices />
       {dialog === 'drawings' && <DrawingsDialog />}
       {dialog === 'export' && <ExportDialog />}
+      {dialog === 'palette' && <CommandPalette />}
+      {dialog === 'shortcuts' && <ShortcutsDialog />}
     </main>
   );
 }

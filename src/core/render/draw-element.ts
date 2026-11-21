@@ -4,6 +4,10 @@ import { layoutOf } from '../text/layout';
 import type { SketchCache } from './sketch/cache';
 import { tracePath } from './sketch/path';
 
+/** Maps stored colours to painted ones (identity, or the dark theme). */
+export type ColorMap = (color: string) => string;
+const identity: ColorMap = (c) => c;
+
 /**
  * Paints an element from its cached sketch. Expects the context in world
  * space. Opacity applies per layer, so a fill under its own outline darkens
@@ -13,6 +17,7 @@ export function paintElement(
   ctx: CanvasRenderingContext2D,
   el: SceneElement,
   cache: SketchCache,
+  color: ColorMap = identity,
 ): void {
   const entry = cache.get(el);
   const { layers } = entry.drawable;
@@ -28,7 +33,7 @@ export function paintElement(
   }
 
   ctx.save();
-  ctx.globalAlpha = el.style.opacity / 100;
+  ctx.globalAlpha *= el.style.opacity / 100;
   ctx.translate(el.x + el.width / 2, el.y + el.height / 2);
   if (el.angle !== 0) ctx.rotate(el.angle);
   // Work in the element's local frame (origin at the unrotated top-left).
@@ -39,10 +44,10 @@ export function paintElement(
     const path = paths[i];
     if (!path) return;
     if (layer.mode === 'fill') {
-      ctx.fillStyle = layer.color;
+      ctx.fillStyle = color(layer.color);
       ctx.fill(path);
     } else {
-      ctx.strokeStyle = layer.color;
+      ctx.strokeStyle = color(layer.color);
       ctx.lineWidth = layer.width;
       ctx.setLineDash(layer.dash ?? []);
       ctx.stroke(path);
@@ -67,7 +72,7 @@ export function paintImage(
 ): void {
   if (el.style.opacity <= 0 || el.width <= 0 || el.height <= 0) return;
   ctx.save();
-  ctx.globalAlpha = el.style.opacity / 100;
+  ctx.globalAlpha *= el.style.opacity / 100;
   ctx.translate(el.x + el.width / 2, el.y + el.height / 2);
   if (el.angle !== 0) ctx.rotate(el.angle);
   ctx.translate(-el.width / 2, -el.height / 2);
@@ -94,11 +99,12 @@ export function paintText(
   ctx: CanvasRenderingContext2D,
   el: TextElement,
   backdrop: string | null = null,
+  color: ColorMap = identity,
 ): void {
   if (el.style.opacity <= 0 || el.text === '') return;
   const layout = layoutOf(el);
   ctx.save();
-  ctx.globalAlpha = el.style.opacity / 100;
+  ctx.globalAlpha *= el.style.opacity / 100;
   ctx.translate(el.x + el.width / 2, el.y + el.height / 2);
   if (el.angle !== 0) ctx.rotate(el.angle);
   ctx.translate(-el.width / 2, -el.height / 2);
@@ -108,7 +114,7 @@ export function paintText(
     ctx.fillRect(-pad, -pad / 2, el.width + pad * 2, el.height + pad);
   }
   ctx.font = fontString(el.fontFamily, el.fontSize);
-  ctx.fillStyle = el.style.strokeColor;
+  ctx.fillStyle = color(el.style.strokeColor);
   ctx.textBaseline = 'middle';
   ctx.textAlign = el.textAlign;
   const x = el.textAlign === 'left' ? 0 : el.textAlign === 'center' ? el.width / 2 : el.width;

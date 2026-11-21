@@ -5,6 +5,7 @@ import '../ui/styles.css';
 import { installTextMeasurement } from './text-setup';
 import { App } from './App';
 import { createApp, detectMac } from './create-app';
+import { registerServiceWorker } from './service-worker';
 
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('#root element missing');
@@ -13,6 +14,7 @@ if (!rootEl) throw new Error('#root element missing');
 // The saved drawing is restored before the first render.
 void createApp({ dev: import.meta.env.DEV, isMac: detectMac() }).then((services) => {
   installTextMeasurement(services.editor);
+  if (import.meta.env.PROD) registerServiceWorker(services.ui);
   createRoot(rootEl).render(
     <StrictMode>
       <App services={services} />

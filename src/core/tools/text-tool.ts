@@ -1,4 +1,4 @@
-import { setTool } from '../actions/actions';
+import { afterCreate } from '../actions/actions';
 import { createTextAt, editTextAt } from '../actions/text-actions';
 import type { Point } from '../geometry/vec';
 import { distance } from '../geometry/vec';
@@ -40,12 +40,12 @@ export class TextTool implements Tool {
       const y = Math.min(p.startWorld.y, e.world.y);
       ctx.update((s) => {
         const half = (s.styleMemory.textProps.fontSize * LINE_HEIGHT) / 2;
-        return setTool(createTextAt(s, { x, y: y + half }, width), 'select');
+        return afterCreate(createTextAt(s, { x, y: y + half }, width));
       });
       return;
     }
     const hit = ctx.hitTest(p.startWorld);
-    ctx.update((s) => setTool(editTextAt(s, p.startWorld, hit), 'select'));
+    ctx.update((s) => afterCreate(editTextAt(s, p.startWorld, hit)));
   }
 
   cancel(): void {

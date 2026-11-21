@@ -1,7 +1,7 @@
 import { deleteSelection } from '../core/actions/edit-actions';
 import { insertImages, type ImagePlacement } from '../core/actions/image-actions';
 import { pasteTextAt } from '../core/actions/text-actions';
-import { COMMANDS, executeCommand, type CommandId } from '../core/actions/commands';
+import { COMMANDS, commandAllowed, executeCommand, type CommandId } from '../core/actions/commands';
 import { screenToWorld } from '../core/camera/camera';
 import type { Point } from '../core/geometry/vec';
 import {
@@ -19,6 +19,7 @@ import { t } from '../i18n/t';
 import { pickFile, type FileTypeSpec } from './files';
 import type { AddImageError } from './images';
 import { Persistence } from './persistence';
+import { installTheme } from './theme';
 import { UiBus } from './ui-bus';
 
 /** Everything the UI needs, wired once at startup. */
@@ -101,8 +102,10 @@ export async function createApp(options: { dev: boolean; isMac: boolean }): Prom
   };
 
   const persistence = await Persistence.create(editor, ui);
+  installTheme(editor);
 
   const insertImageFiles = (files: readonly File[], at: Point | null = null): boolean => {
+    if (editor.getState().viewMode) return false;
     const images = files.filter((f) => f.type.startsWith('image/'));
     if (images.length === 0) return false;
     const center = at ?? pasteTarget();
@@ -136,6 +139,12 @@ export async function createApp(options: { dev: boolean; isMac: boolean }): Prom
     'file.export': () => {
       ui.dialog.set('export');
     },
+    'help.palette': () => {
+      ui.dialog.set(ui.dialog.get() === 'palette' ? null : 'palette');
+    },
+    'help.shortcuts': () => {
+      ui.dialog.set(ui.dialog.get() === 'shortcuts' ? null : 'shortcuts');
+    },
     'insert.image': () => {
       void pickFile([IMAGE_FILE_TYPE]).then(
         (picked) => {
@@ -161,7 +170,7 @@ export async function createApp(options: { dev: boolean; isMac: boolean }): Prom
       if (cmd.devOnly === true && !options.dev) return;
       const effect = effects[id];
       if (effect) {
-        if (!cmd.enabled || cmd.enabled(editor.getState())) effect();
+        if (commandAllowed(editor.getState(), cmd)) effect();
         return;
       }
       executeCommand(editor, cmd);
@@ -169,10 +178,11 @@ export async function createApp(options: { dev: boolean; isMac: boolean }): Prom
     copySelection,
     cutSelection() {
       const text = copySelection();
-      if (text !== null) editor.update(deleteSelection);
+      if (text !== null && !editor.getState().viewMode) editor.update(deleteSelection);
       return text;
     },
     pasteText(text, inPlace) {
+      if (editor.getState().viewMode) return false;
       const elements = parseClipboard(text);
       if (!elements) {
         if (text.trim() === '') return false;

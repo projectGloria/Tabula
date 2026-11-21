@@ -1,4 +1,4 @@
-import { addElements, deleteElements, setSelection, setTool } from '../actions/actions';
+import { addElements, deleteElements, setSelection, afterCreate } from '../actions/actions';
 import { setArrowBindings, setLinearPoints } from '../actions/linear-actions';
 import { worldPointsOf } from '../geometry/element-geometry';
 import { distance, type Point } from '../geometry/vec';
@@ -240,8 +240,7 @@ export class LinearTool implements Tool {
     }
     ctx.update((s) => {
       const next = clearOverlay(setLinearPoints(s, g.id, this.points(s, g, pts), { end }));
-      // Tool lock arrives in M8; until then return to Select after each line.
-      return setTool(setSelection(next, [g.id]), 'select');
+      return afterCreate(setSelection(next, [g.id]));
     });
     ctx.end?.();
   }

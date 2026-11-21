@@ -2,7 +2,7 @@ import {
   addElements,
   deleteElements,
   setSelection,
-  setTool,
+  afterCreate,
   updateElement,
 } from '../actions/actions';
 import type { Point } from '../geometry/vec';
@@ -54,8 +54,7 @@ export class BoxShapeTool<T extends BoxElementType> implements Tool {
       const el = s.scene.entities[d.id];
       const min = MIN_SIZE_PX / s.camera.zoom;
       if (!el || (el.width < min && el.height < min)) return deleteElements(s, [d.id]);
-      // Tool lock arrives in M8; until then return to Select after each shape.
-      return setTool(setSelection(s, [d.id]), 'select');
+      return afterCreate(setSelection(s, [d.id]));
     });
   }
 
