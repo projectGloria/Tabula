@@ -18,7 +18,7 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 ## Decisions
 
 - File extension `.tabula`. Schema version: TBD in M7.
-- LICENSE: proprietary, "Copyright (c) 2026 Project Gloria. All rights reserved." The user's answer ("proprietary or MIT? yes") was ambiguous, so this needs confirming.
+- LICENSE: proprietary, "Copyright (c) 2026 Project Gloria. All rights reserved." Confirmed by the user on 2026-11-21.
 - Fonts approved (OFL, self-hosted; bundled in M5): Patrick Hand, Inter, JetBrains Mono.
 - Unfilled shapes hit only near their outline; filled shapes hit anywhere inside.
 - Runtime deps: `react` and `react-dom` only.
