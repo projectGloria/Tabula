@@ -29,7 +29,11 @@ export class BoxShapeTool<T extends BoxElementType> implements Tool {
 
   onPointerDown(ctx: ToolContext, e: PointerInput): void {
     if (e.button !== 0 || this.drawing) return;
-    const el = createBoxElement(this.id, { x: e.world.x, y: e.world.y });
+    const el = createBoxElement(this.id, {
+      x: e.world.x,
+      y: e.world.y,
+      style: ctx.getState().styleMemory.shape,
+    });
     this.drawing = { pointerId: e.pointerId, id: el.id, origin: e.world };
     ctx.update((s) => addElements(s, [el]));
   }

@@ -2,6 +2,7 @@ import { createElementId, createSeed } from './ids';
 import { DEFAULT_STYLE } from './style';
 import type {
   ArrowElement,
+  Arrowhead,
   BoxElement,
   BoxElementType,
   ElementId,
@@ -171,19 +172,24 @@ export function createLine(init: NewPointsInit): LineElement {
   };
 }
 
-export function createArrow(init: NewPointsInit): ArrowElement {
+export interface NewArrowInit extends NewPointsInit {
+  readonly startHead?: Arrowhead;
+  readonly endHead?: Arrowhead;
+}
+
+export function createArrow(init: NewArrowInit): ArrowElement {
   return {
     ...baseFields(init.x, init.y, init.style),
     type: 'arrow',
     width: 0,
     height: 0,
     points: [{ x: 0, y: 0 }],
-    startHead: 'none',
-    endHead: 'arrow',
+    startHead: init.startHead ?? 'none',
+    endHead: init.endHead ?? 'arrow',
   };
 }
 
-export function createLinearElement(type: LinearElementType, init: NewPointsInit): LinearElement {
+export function createLinearElement(type: LinearElementType, init: NewArrowInit): LinearElement {
   return type === 'line' ? createLine(init) : createArrow(init);
 }
 

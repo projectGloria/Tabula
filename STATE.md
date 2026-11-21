@@ -7,9 +7,9 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 | #   | Milestone                         | Status                              |
 | --- | --------------------------------- | ----------------------------------- |
 | 1   | Foundation & Guardrails           | Done                                |
-| 2   | Core Shapes & Transform Geometry  | **Done**: awaiting browser sign-off |
-| 3   | Hand-Drawn Renderer & Style Panel | Next                                |
-| 4   | Editing Core & History            | —                                   |
+| 2   | Core Shapes & Transform Geometry  | Done                                |
+| 3   | Hand-Drawn Renderer & Style Panel | **Done**: awaiting browser sign-off |
+| 4   | Editing Core & History            | Next                                |
 | 5   | Text & Bound Labels               | —                                   |
 | 6   | Arrow Binding & Snapping          | —                                   |
 | 7   | Persistence, Files & Export       | — (planned split: 7a / 7b)          |
@@ -23,7 +23,8 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 - Unfilled shapes hit only near their outline; filled shapes hit anywhere inside.
 - Runtime deps: `react` and `react-dom` only.
 - Web Locks API and the M7 split were proposed and assumed approved (not explicitly confirmed).
-- M2 (flagged, not yet confirmed): multi-selection resize is always aspect-locked, so rotated members stay undistorted. Pencil is sticky and does not select its stroke. A 2-point line or arrow shows endpoint handles only. Escape keeps a polyline that has ≥ 2 points. The arrow default is no start head and an `arrow` end head. All 6 head types render; the UI to pick them comes in M3.
+- M2 (flagged, not yet confirmed): multi-selection resize is always aspect-locked, so rotated members stay undistorted. Pencil is sticky and does not select its stroke. A 2-point line or arrow shows endpoint handles only. Escape keeps a polyline that has ≥ 2 points. The arrow default is no start head and an `arrow` end head. All 6 head types render.
+- M3 (flagged, not yet confirmed): style memory is per category (rect/diamond/ellipse share one; line/arrow share one; pencil has its own; arrowheads are separate). Editing the selection also updates its category's memory. Locked elements are skipped. Only custom (non-palette) colors go into Recent, which is session-only until M7. Roughness and pattern do not apply to pencil strokes. The hatch color is the fill color, so the default white fill makes a hatch invisible until a fill color is picked.
 
 ## Locked invariants
 
@@ -33,7 +34,9 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 - **Geometry edits** go through `GeometryPatch` / `applyGeometry` / `setElementGeometry`. Cancel uses `restoreElements`, which bumps `revision` past the current one.
 - **Camera** `{x, y, zoom}`: `x`/`y` is the world point at the screen's top-left. `screen = (world − cam) × zoom`. Zoom is clamped to 0.1–30.
 - **Scene** is `{ entities: Record<ElementId, SceneElement>, order: ElementId[] }`, with order bottom → top.
-- **Elements are immutable.** Every change goes through `mutateElement`, which bumps `revision`. M3 render caches key on `revision`.
+- **Elements are immutable.** Every change goes through `mutateElement`, which bumps `revision`.
+- **Sketches** are pure functions of `(seed, type, size, points/heads, style)` in the element's local frame. Random streams are split per purpose (outline / fill / hatch / heads), so changing the fill never changes the outline. `SketchCache` keys on `(id, revision)` and reuses the drawable when only `x`/`y`/`angle` changed.
+- **Hit-testing stays on clean geometry.** Bounds are padded by `sketchPadding` for wobble.
 - **AppState** `{scene, camera, viewport, selection, activeTool, background, debug}` is a single immutable store. Actions are pure `(state, …) → state` and return the _same_ object for no-ops.
 - **Editor** owns the store and the `GridIndex`. The index is synced _before_ subscribers are notified.
 - **`src/core` has no React** and no imports from `ui/` or `app/`. This is enforced by ESLint.
@@ -54,15 +57,21 @@ src/core/store      store.ts (createStore), app-state.ts, editor.ts (Editor: sto
 src/core/camera     camera.ts (screen↔world, zoomAt, panBy, wheelZoomFactor)
 src/core/hit        hit-test.ts (per-type hitTestElement, hitTopmost), handles.ts (frame, handle
                     layout/picking, resize cursors)
-src/core/actions    actions.ts (pure transitions), commands.ts (COMMANDS registry)
+src/core/actions    actions.ts (pure transitions), commands.ts (COMMANDS registry), style-actions.ts
+                    (getStyleView with 'mixed', applyStyle → selection + memory, recent colors)
 src/core/keymap     keymap.ts (parse/match/format/conflicts), bindings.ts (DEFAULT_BINDINGS)
 src/core/tools      tool.ts, select-tool (move/resize/rotate/endpoint), box-shape-tool
                     (rect/diamond/ellipse), linear-tool, freedraw-tool, constrain, drag-rect
-src/core/render     renderer.ts (dual canvas, rAF batching, culling, debug), draw-element, surface, fps-meter
+src/core/render     renderer.ts (dual canvas, rAF batching, culling, debug), draw-element (paintElement:
+                    Path2D per layer), surface, fps-meter
+src/core/render/sketch  rng (xorshift32, rngFor streams), path (PathCmd, builders, itemAt), strokes
+                    (segment/polyline/loop wobble), hatch, arrowheads, generate (Drawable layers), cache
+src/core/model      palette.ts (stroke/fill palettes, normalizeHex)
 src/core/{history,binding,snapping,io,persist}   empty; reserved for M4/M6/M7
 src/i18n            en.ts (string table), t.ts
 src/app             main.tsx (entry), create-app.ts (wires services), App.tsx
-src/ui              Canvas.tsx (pointer/wheel/resize), Toolbar.tsx, icons.tsx, hooks/, styles.css
+src/ui              Canvas.tsx (pointer/wheel/resize), Toolbar.tsx, StylePanel.tsx, icons.tsx,
+                    style-icons.tsx, hooks/, styles.css
 ```
 
 Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
@@ -82,7 +91,10 @@ Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
 - No marquee or undo (M4), no persistence (M7). Reload loses everything.
 - The multi-selection frame is an axis-aligned union box recomputed every frame, so it changes size during group rotation. A persistent group frame is a candidate for M4.
 - Lines have no mid-point or point-insert editing; only 2-point lines get endpoint handles. Curved and elbow arrows are out of scope (straight only).
-- Rendering is clean geometry; the sketch engine arrives in M3. The `roughness` and `seed` fields exist but are unused.
+- Style edits are not undoable yet (M4). The opacity slider will need history coalescing then.
+- At opacity below 100% a solid fill and its outline overlap and the overlap looks slightly darker (layers are composited separately).
+- The eyedropper uses the browser EyeDropper API (Chromium only) and is hidden elsewhere.
+- The style panel has no keyboard shortcuts yet (M8).
 - Fonts are not bundled yet (M5). The UI uses the system font stack.
 - Tool lock is in M8: shape and line tools return to Select after each shape (the pencil stays active).
 - The debug overlay text is drawn in English via `t()` and is not RTL-aware.
@@ -92,9 +104,8 @@ Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
 
 `npm run dev` · `npm run typecheck` · `npm test` · `npm run lint` · `npm run format` · `npm run build`
 
-## Next: Milestone 3 starting point
+## Next: Milestone 4 starting point
 
-1. `core/render/sketch/`: a seeded, deterministic rough-path generator (original implementation; no third-party code) driven by `roughness` and `seed`. Cache paths per element keyed on `revision`.
-2. Fill styles (hachure, cross-hatch, solid) and stroke styles (solid, dashed, dotted) for every shape. Reuse `element-shape.ts` for vertices, radii and head sizes.
-3. Style panel UI: stroke and background colors (original palette), stroke width, roughness, fill, arrowheads and opacity. Apply edits to the selection through actions.
-4. Keep hit-testing on clean geometry (already per type).
+1. `core/history/`: undo/redo of scene changes (gesture-level entries; coalesce slider drags and style edits).
+2. Marquee selection, duplicate, delete, copy/paste, z-order, group/ungroup, lock, align/distribute per INITIAL_PLAN.md.
+3. Route tool commits and `applyStyle` through history.

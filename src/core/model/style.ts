@@ -1,4 +1,4 @@
-import type { ElementStyle, StrokeWidth } from './types';
+import type { ElementStyle, Roughness, StrokeWidth } from './types';
 
 export const DEFAULT_STYLE: ElementStyle = {
   strokeColor: '#26241f',
@@ -18,3 +18,6 @@ export const STROKE_WIDTH_PX: Readonly<Record<StrokeWidth, number>> = {
   bold: 4,
   extra: 7,
 };
+
+/** Base wobble amplitude (world units) per roughness level, before size scaling. */
+export const ROUGHNESS_AMP: Readonly<Record<Roughness, number>> = { 0: 0, 1: 1.1, 2: 2.8 };

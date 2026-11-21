@@ -1,6 +1,7 @@
 import { AppContext } from '../ui/app-context';
 import { Canvas } from '../ui/Canvas';
 import { useKeyboardShortcuts } from '../ui/hooks/useKeyboardShortcuts';
+import { StylePanel } from '../ui/StylePanel';
 import { Toolbar } from '../ui/Toolbar';
 import type { AppServices } from './create-app';
 
@@ -10,6 +11,7 @@ function Shell() {
     <main className="app">
       <Canvas />
       <Toolbar />
+      <StylePanel />
     </main>
   );
 }

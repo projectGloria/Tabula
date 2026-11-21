@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createArrow, createBoxElement, createFreedraw, mutateElement } from '../model/scene';
+import { DEFAULT_STYLE } from '../model/style';
 import { normalizeAngle, snapAngle, SNAP_ANGLE } from './angle';
 import { elementBounds } from './element-bounds';
 import { localToWorld, pointsPatchFromWorld, worldPointsOf } from './element-geometry';
@@ -142,10 +143,12 @@ describe('strokeOutline', () => {
 });
 
 describe('elementBounds', () => {
-  it('covers a rotated ellipse box plus half the stroke', () => {
-    const el = createBoxElement('ellipse', { x: 0, y: 0, width: 100, height: 40 });
-    const b = elementBounds(el);
-    expect(b).toEqual({ minX: -1, minY: -1, maxX: 101, maxY: 41 });
+  it('covers an ellipse box plus half the stroke, and the sketch wobble when rough', () => {
+    const clean = { ...DEFAULT_STYLE, roughness: 0 as const };
+    const el = createBoxElement('ellipse', { x: 0, y: 0, width: 100, height: 40, style: clean });
+    expect(elementBounds(el)).toEqual({ minX: -1, minY: -1, maxX: 101, maxY: 41 });
+    const rough = createBoxElement('ellipse', { x: 0, y: 0, width: 100, height: 40 });
+    expect(elementBounds(rough).minX).toBeLessThan(-1);
   });
 
   it('pads arrows by the head size and freedraw by its max width', () => {

@@ -1,6 +1,6 @@
 import { freedrawWidth, strokeOutline } from './stroke-outline';
 import type { Point } from './vec';
-import { STROKE_WIDTH_PX } from '../model/style';
+import { ROUGHNESS_AMP, STROKE_WIDTH_PX } from '../model/style';
 import type { ArrowElement, FreedrawElement, SceneElement } from '../model/types';
 
 /** Stroke width of an element in world units. */
@@ -55,4 +55,13 @@ export function freedrawOutline(el: FreedrawElement): readonly Point[] {
 /** True when the arrow has any visible head. */
 export function hasArrowheads(el: ArrowElement): boolean {
   return el.startHead !== 'none' || el.endHead !== 'none';
+}
+
+/**
+ * Upper bound on how far the sketch renderer can wander from the clean
+ * geometry (jitter + overshoot + bow at the largest size scale).
+ */
+export function sketchPadding(el: SceneElement): number {
+  if (el.type === 'freedraw') return 0;
+  return ROUGHNESS_AMP[el.style.roughness] * 1.5 * 3;
 }

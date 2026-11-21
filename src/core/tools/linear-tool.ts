@@ -47,7 +47,14 @@ export class LinearTool implements Tool {
     if (e.button !== 0) return;
     const g = this.g;
     if (!g) {
-      const el = createLinearElement(this.id, { x: e.world.x, y: e.world.y });
+      const memory = ctx.getState().styleMemory;
+      const el = createLinearElement(this.id, {
+        x: e.world.x,
+        y: e.world.y,
+        style: memory.linear,
+        startHead: memory.arrowHeads.start,
+        endHead: memory.arrowHeads.end,
+      });
       this.g = {
         id: el.id,
         fixed: [e.world],

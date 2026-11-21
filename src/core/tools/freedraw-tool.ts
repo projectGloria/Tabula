@@ -48,7 +48,12 @@ export class FreedrawTool implements Tool {
     if (e.button !== 0 || this.stroke) return;
     const usePen = e.kind === 'pen';
     const pressure = usePen ? penPressure(e.pressure) : DEFAULT_PRESSURE;
-    const el = createFreedraw({ x: e.world.x, y: e.world.y, pressure });
+    const el = createFreedraw({
+      x: e.world.x,
+      y: e.world.y,
+      pressure,
+      style: ctx.getState().styleMemory.freedraw,
+    });
     this.stroke = {
       pointerId: e.pointerId,
       id: el.id,

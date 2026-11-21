@@ -14,7 +14,8 @@ import type { Point } from '../geometry/vec';
 import type { ElementId } from '../model/types';
 import type { GridIndex } from '../spatial/grid-index';
 import type { AppState } from '../store/app-state';
-import { drawElement } from './draw-element';
+import { paintElement } from './draw-element';
+import { SketchCache } from './sketch/cache';
 import { FpsMeter } from './fps-meter';
 import { CanvasSurface } from './surface';
 
@@ -46,6 +47,8 @@ export class Renderer {
   private readonly scene: CanvasSurface;
   private readonly overlay: CanvasSurface;
   private readonly fps = new FpsMeter();
+  /** Generated sketches, reused across frames until an element's sketch inputs change. */
+  readonly sketches = new SketchCache();
   private readonly dirty: Dirty = { scene: true, overlay: true };
   private frame = 0;
   private lastState: AppState | null = null;
@@ -134,8 +137,9 @@ export class Renderer {
     ctx.setTransform(z, 0, 0, z, -camera.x * z, -camera.y * z);
     for (const id of visible) {
       const el = state.scene.entities[id];
-      if (el) drawElement(ctx, el);
+      if (el) paintElement(ctx, el, this.sketches);
     }
+    this.sketches.prune(state.scene);
   }
 
   private drawOverlay(state: AppState): void {
