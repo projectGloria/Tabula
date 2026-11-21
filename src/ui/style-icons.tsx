@@ -180,6 +180,22 @@ export function CornersRoundedIcon() {
   );
 }
 
+export function PathStraightIcon() {
+  return (
+    <Glyph>
+      <path d="M4 15 16 5" />
+    </Glyph>
+  );
+}
+
+export function PathCurvedIcon() {
+  return (
+    <Glyph>
+      <path d="M4 15C6 6 14 14 16 5" />
+    </Glyph>
+  );
+}
+
 export function EyedropperIcon() {
   return (
     <Glyph>

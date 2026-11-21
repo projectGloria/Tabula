@@ -63,6 +63,7 @@ export function createApp(options: { dev: boolean; isMac: boolean }): AppService
     getState: editor.getState,
     update: editor.update,
     hitTest: (world) => editor.hitTest(world),
+    queryBox: (box) => editor.index.queryBox(box),
     begin: editor.begin,
     end: editor.end,
   };

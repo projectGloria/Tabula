@@ -1,5 +1,6 @@
 import { boxExpand, boxFromPoints, type Box } from './box';
-import { worldPointsOf } from './element-geometry';
+import { localToWorld, worldPointsOf } from './element-geometry';
+import { linearPathPoints } from './linear-path';
 import {
   arrowheadSize,
   freedrawMaxWidth,
@@ -24,7 +25,11 @@ export function elementBounds(el: SceneElement): Box {
     case 'line':
     case 'arrow':
     case 'freedraw': {
-      const box = boxFromPoints(worldPointsOf(el)) ?? rectAABB(el);
+      const pts =
+        el.type === 'freedraw'
+          ? worldPointsOf(el)
+          : linearPathPoints(el).map((p) => localToWorld(el, p));
+      const box = boxFromPoints(pts) ?? rectAABB(el);
       let pad = stroke / 2;
       if (el.type === 'arrow' && hasArrowheads(el)) pad = Math.max(pad, arrowheadSize(stroke));
       if (el.type === 'freedraw') pad = freedrawMaxWidth(stroke) / 2;

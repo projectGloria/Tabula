@@ -9,6 +9,7 @@ import type {
   ElementStyle,
   GroupId,
   FreedrawElement,
+  LinearCurve,
   LinearElement,
   LinearElementType,
   LineElement,
@@ -160,6 +161,7 @@ export interface NewPointsInit {
   readonly x: number;
   readonly y: number;
   readonly style?: ElementStyle;
+  readonly curve?: LinearCurve;
 }
 
 /** A line with a single point at `(x, y)`; points are appended via `withWorldPoints`. */
@@ -170,6 +172,7 @@ export function createLine(init: NewPointsInit): LineElement {
     width: 0,
     height: 0,
     points: [{ x: 0, y: 0 }],
+    curve: init.curve ?? 'straight',
   };
 }
 
@@ -185,8 +188,11 @@ export function createArrow(init: NewArrowInit): ArrowElement {
     width: 0,
     height: 0,
     points: [{ x: 0, y: 0 }],
+    curve: init.curve ?? 'straight',
     startHead: init.startHead ?? 'none',
     endHead: init.endHead ?? 'arrow',
+    startBinding: null,
+    endBinding: null,
   };
 }
 

@@ -10,7 +10,7 @@ import {
 } from '../model/groups';
 import { createElementId, createGroupId } from '../model/ids';
 import { insertElements, isPointsElement, mutateElement, replaceElements } from '../model/scene';
-import type { ElementId, GroupId, Scene, SceneElement } from '../model/types';
+import type { ElementId, GroupId, PointBinding, Scene, SceneElement } from '../model/types';
 import { selectedIds, type AppState } from '../store/app-state';
 import { boundTextIndex } from '../text/bound';
 import { clearSelection, deleteElements, moveElements, setSelection } from './actions';
@@ -81,6 +81,19 @@ export function cloneElements(
       const containerId = ids.get(el.containerId);
       if (containerId === undefined) return [];
       return [cloneOne({ ...el, containerId }, id, offset, remap, newIds)];
+    }
+    if (el.type === 'arrow') {
+      // Bindings follow their target into the copy; others are dropped.
+      const rebind = (b: PointBinding | null): PointBinding | null => {
+        const target = b ? ids.get(b.elementId) : undefined;
+        return b && target !== undefined ? { elementId: target, anchor: b.anchor } : null;
+      };
+      const arrow = {
+        ...el,
+        startBinding: rebind(el.startBinding),
+        endBinding: rebind(el.endBinding),
+      };
+      return [cloneOne(arrow, id, offset, remap, newIds)];
     }
     return [cloneOne(el, id, offset, remap, newIds)];
   });

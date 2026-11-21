@@ -11,6 +11,7 @@ import type {
   Corners,
   FillStyle,
   FontFamily,
+  LinearCurve,
   Roughness,
   StrokePattern,
   StrokeWidth,
@@ -39,6 +40,8 @@ import {
   FillHatchIcon,
   FillNoneIcon,
   FillSolidIcon,
+  PathCurvedIcon,
+  PathStraightIcon,
   PatternDashedIcon,
   PatternDottedIcon,
   PatternSolidIcon,
@@ -92,6 +95,11 @@ const ROUGHNESS_OPTIONS: readonly Option<Roughness>[] = [
 const CORNER_OPTIONS: readonly Option<Corners>[] = [
   { value: 'sharp', labelKey: 'style.corners.sharp', icon: <CornersSharpIcon /> },
   { value: 'rounded', labelKey: 'style.corners.rounded', icon: <CornersRoundedIcon /> },
+];
+
+const PATH_OPTIONS: readonly Option<LinearCurve>[] = [
+  { value: 'straight', labelKey: 'style.path.straight', icon: <PathStraightIcon /> },
+  { value: 'curved', labelKey: 'style.path.curved', icon: <PathCurvedIcon /> },
 ];
 
 const HEADS: readonly { value: Arrowhead; labelKey: I18nKey }[] = [
@@ -483,6 +491,17 @@ function PanelBody({
             value={view.corners}
             onPick={(corners) => {
               apply({ corners });
+            }}
+          />
+        </Section>
+      )}
+      {view.curve !== undefined && (
+        <Section labelId="style-path" title={t('style.path')}>
+          <OptionRow
+            options={PATH_OPTIONS}
+            value={view.curve}
+            onPick={(curve) => {
+              apply({ curve });
             }}
           />
         </Section>

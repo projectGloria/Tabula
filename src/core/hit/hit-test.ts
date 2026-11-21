@@ -5,6 +5,7 @@ import {
   freedrawOutline,
   strokePx,
 } from '../geometry/element-shape';
+import { linearPathPoints } from '../geometry/linear-path';
 import { freedrawWidth } from '../geometry/stroke-outline';
 import { toRectLocal } from '../geometry/rect';
 import {
@@ -80,7 +81,7 @@ export function hitTestElement(el: SceneElement, p: Point, tolerance: number): b
     }
     case 'line':
     case 'arrow':
-      return distanceToPolyline(local, el.points) <= reach;
+      return distanceToPolyline(local, linearPathPoints(el)) <= reach;
     case 'freedraw':
       return hitFreedraw(el, local, tolerance);
     case 'text':

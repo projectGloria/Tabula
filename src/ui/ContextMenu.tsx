@@ -7,11 +7,13 @@ import { t } from '../i18n/t';
 import { useApp } from './app-context';
 
 type Entry =
-  | { readonly kind: 'command'; readonly id: CommandId }
+  /** `optional`: shown only while the command is enabled. */
+  | { readonly kind: 'command'; readonly id: CommandId; readonly optional?: boolean }
   | { readonly kind: 'clip'; readonly op: 'copy' | 'cut' | 'paste'; readonly labelKey: I18nKey }
   | { readonly kind: 'sep' };
 
 const SELECTION_ENTRIES: readonly Entry[] = [
+  { kind: 'command', id: 'edit.points', optional: true },
   { kind: 'clip', op: 'cut', labelKey: 'command.cut' },
   { kind: 'clip', op: 'copy', labelKey: 'command.copy' },
   { kind: 'clip', op: 'paste', labelKey: 'command.paste' },
@@ -35,6 +37,15 @@ const CANVAS_ENTRIES: readonly Entry[] = [
   { kind: 'clip', op: 'paste', labelKey: 'command.paste' },
   { kind: 'command', id: 'selection.all' },
   { kind: 'command', id: 'edit.unlockAll' },
+  { kind: 'sep' },
+  { kind: 'command', id: 'view.grid' },
+  { kind: 'command', id: 'view.gridSnap' },
+  { kind: 'command', id: 'view.gridLines' },
+  { kind: 'command', id: 'view.gridSize10' },
+  { kind: 'command', id: 'view.gridSize20' },
+  { kind: 'command', id: 'view.gridSize40' },
+  { kind: 'sep' },
+  { kind: 'command', id: 'view.objectSnap' },
 ];
 
 const EDGE_PX = 8;
@@ -157,13 +168,16 @@ export function ContextMenu() {
         }
         const cmd = COMMANDS[entry.id];
         const enabled = cmd.enabled ? cmd.enabled(state) : true;
+        if (entry.optional === true && !enabled) return null;
         const key = app.keymap.shortcutFor(entry.id);
+        const checked = cmd.checked?.(state);
         return (
           <button
             key={entry.id}
             type="button"
-            role="menuitem"
-            className="menu-item"
+            role={checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+            aria-checked={checked}
+            className={checked === true ? 'menu-item checked' : 'menu-item'}
             disabled={!enabled}
             onClick={() => {
               setAt(null);

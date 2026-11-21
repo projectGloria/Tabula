@@ -1,4 +1,5 @@
-import { localToWorld, worldPointsOf } from '../geometry/element-geometry';
+import { localToWorld } from '../geometry/element-geometry';
+import { linearPathPoints } from '../geometry/linear-path';
 import type { Point } from '../geometry/vec';
 import { mutateElement, removeElements, replaceElements } from '../model/scene';
 import type {
@@ -70,7 +71,7 @@ export function containerInnerSize(c: BoxElement): { width: number; height: numb
 
 /** World point at half the arc length of an arrow. */
 export function arrowMidpoint(el: ArrowElement): Point {
-  const pts = worldPointsOf(el);
+  const pts = linearPathPoints(el).map((p) => localToWorld(el, p));
   let total = 0;
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1];

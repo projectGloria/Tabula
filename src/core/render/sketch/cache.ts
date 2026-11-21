@@ -30,11 +30,12 @@ function sameSketchInputs(a: SceneElement, b: SceneElement): boolean {
     case 'ellipse':
       return true;
     case 'line':
-      return b.type === 'line' && a.points === b.points;
+      return b.type === 'line' && a.points === b.points && a.curve === b.curve;
     case 'arrow':
       return (
         b.type === 'arrow' &&
         a.points === b.points &&
+        a.curve === b.curve &&
         a.startHead === b.startHead &&
         a.endHead === b.endHead
       );

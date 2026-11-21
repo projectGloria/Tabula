@@ -2,12 +2,14 @@ import { DEFAULT_CAMERA, type Camera, type Viewport } from '../camera/camera';
 import { EMPTY_SCENE } from '../model/scene';
 import { DEFAULT_STYLE } from '../model/style';
 import type { Box } from '../geometry/box';
+import type { Guide } from '../snapping/snapping';
 import type {
   Arrowhead,
   ElementId,
   ElementStyle,
   FontFamily,
   GroupId,
+  LinearCurve,
   Scene,
   TextAlign,
   VerticalAlign,
@@ -37,14 +39,36 @@ export interface AppState {
   readonly overlay: OverlayState;
   /** Text element open in the inline editor; edits form one history step. */
   readonly editingText: ElementId | null;
+  /** Line/arrow open in the point editor, with its selected point indices. */
+  readonly linearEdit: LinearEdit | null;
+  readonly gridVisible: boolean;
+  /** Snap to the grid while it is shown. */
+  readonly gridSnap: boolean;
+  /** Grid spacing in world units. */
+  readonly gridSize: number;
+  readonly gridStyle: GridStyle;
+  /** Snap to other elements' edges and centres. */
+  readonly objectSnap: boolean;
+}
+
+export type GridStyle = 'dots' | 'lines';
+export const GRID_SIZES = [10, 20, 40] as const;
+
+export interface LinearEdit {
+  readonly id: ElementId;
+  readonly selected: readonly number[];
 }
 
 export interface OverlayState {
   /** Marquee rectangle in world units. */
   readonly marquee: Box | null;
+  /** Shape a dragged arrow endpoint would attach to. */
+  readonly bindTarget: ElementId | null;
+  /** Snap guide lines in world units. */
+  readonly guides: readonly Guide[];
 }
 
-export const EMPTY_OVERLAY: OverlayState = { marquee: null };
+export const EMPTY_OVERLAY: OverlayState = { marquee: null, bindTarget: null, guides: [] };
 
 /** Tools sharing one remembered style: shapes, lines and arrows, freedraw. */
 export type StyleCategory = 'shape' | 'linear' | 'freedraw' | 'text';
@@ -75,6 +99,8 @@ export interface StyleMemory {
   readonly freedraw: ElementStyle;
   readonly text: ElementStyle;
   readonly arrowHeads: ArrowHeads;
+  /** Path style for new lines and arrows. */
+  readonly curve: LinearCurve;
   readonly textProps: TextProps;
 }
 
@@ -84,6 +110,7 @@ export const DEFAULT_STYLE_MEMORY: StyleMemory = {
   freedraw: DEFAULT_STYLE,
   text: DEFAULT_STYLE,
   arrowHeads: { start: 'none', end: 'arrow' },
+  curve: 'straight',
   textProps: DEFAULT_TEXT_PROPS,
 };
 
@@ -103,6 +130,12 @@ export function createInitialState(overrides: Partial<AppState> = {}): AppState 
     focusGroup: null,
     overlay: EMPTY_OVERLAY,
     editingText: null,
+    linearEdit: null,
+    gridVisible: false,
+    gridSnap: true,
+    gridSize: 20,
+    gridStyle: 'dots',
+    objectSnap: false,
     ...overrides,
   };
 }

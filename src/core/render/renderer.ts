@@ -1,5 +1,7 @@
 import { visibleWorldBox, worldToScreen } from '../camera/camera';
+import { anchorWorld, isBindable, polygonOf } from '../binding/binding';
 import { boxUnion, type Box } from '../geometry/box';
+import { localToWorld } from '../geometry/element-geometry';
 import { rectAABB, rectCorners, type RectLike } from '../geometry/rect';
 import {
   getSelectionFrame,
@@ -28,6 +30,12 @@ const HANDLE_FILL = '#ffffff';
 const DEBUG_HANDLE_COLOR = 'rgba(230, 140, 20, 0.9)';
 const DEBUG_AABB_COLOR = 'rgba(214, 51, 108, 0.8)';
 const DEBUG_BOUNDS_COLOR = 'rgba(16, 152, 120, 0.9)';
+const DEBUG_ANCHOR_COLOR = 'rgba(120, 60, 200, 0.9)';
+const BIND_TARGET_COLOR = 'rgba(28, 160, 140, 0.85)';
+const GUIDE_COLOR = '#e0457b';
+const POINT_SELECTED_FILL = '#2f6fde';
+/** Grid spacing doubles until it is at least this many screen px. */
+const MIN_GRID_PX = 8;
 
 export interface DebugLabels {
   fps(value: number): string;
@@ -84,12 +92,16 @@ export class Renderer {
       prev.camera !== next.camera ||
       prev.viewport !== next.viewport ||
       prev.background !== next.background ||
-      prev.editingText !== next.editingText;
+      prev.editingText !== next.editingText ||
+      prev.gridVisible !== next.gridVisible ||
+      prev.gridSize !== next.gridSize ||
+      prev.gridStyle !== next.gridStyle;
     const overlayDirty =
       sceneDirty ||
       prev.selection !== next.selection ||
       prev.debug !== next.debug ||
       prev.overlay !== next.overlay ||
+      prev.linearEdit !== next.linearEdit ||
       prev.focusGroup !== next.focusGroup;
     if (sceneDirty || overlayDirty) this.invalidate({ scene: sceneDirty, overlay: overlayDirty });
   }
@@ -134,6 +146,7 @@ export class Renderer {
     this.scene.clear();
     ctx.fillStyle = state.background;
     ctx.fillRect(0, 0, state.viewport.width, state.viewport.height);
+    if (state.gridVisible) drawGrid(ctx, state);
 
     const view = visibleWorldBox(camera, state.viewport);
     const candidates = this.index.queryBox(view);
@@ -168,6 +181,7 @@ export class Renderer {
     this.overlay.clear();
     const { camera } = state;
 
+    this.drawBindTarget(state);
     // Selection chrome, drawn in screen space for crisp 1px lines.
     const frame = getSelectionFrame(state);
     const handles = getSelectionHandles(state, frame);
@@ -177,7 +191,7 @@ export class Renderer {
     for (const id of ids) {
       const el = state.scene.entities[id];
       if (!el) continue;
-      if (!multi && usesEndpointHandles(el)) continue;
+      if (!multi && usesEndpointHandles(el, state)) continue;
       ctx.strokeStyle = multi ? SELECTION_MEMBER_COLOR : SELECTION_COLOR;
       strokePolygon(
         ctx,
@@ -206,7 +220,88 @@ export class Renderer {
       ctx.setLineDash([]);
     }
 
+    this.drawGuides(state);
     if (state.debug) this.drawDebug(state);
+  }
+
+  /** Outline of the shape an arrow end will attach to. */
+  private drawBindTarget(state: AppState): void {
+    const id = state.overlay.bindTarget;
+    const el = id === null ? undefined : state.scene.entities[id];
+    if (!el || !isBindable(el)) return;
+    const { ctx } = this.overlay;
+    const { camera } = state;
+    const pad = SELECTION_PAD_PX / camera.zoom;
+    ctx.save();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = BIND_TARGET_COLOR;
+    ctx.lineJoin = 'round';
+    const poly = polygonOf(el);
+    if (poly) {
+      // Grow the outline away from the centre so it frames the shape.
+      const cx = el.width / 2;
+      const cy = el.height / 2;
+      const grown = poly.map((p) => {
+        const dx = p.x - cx;
+        const dy = p.y - cy;
+        const len = Math.hypot(dx, dy) || 1;
+        return { x: p.x + (dx / len) * pad * 1.4, y: p.y + (dy / len) * pad * 1.4 };
+      });
+      strokePolygon(
+        ctx,
+        grown.map((p) => worldToScreen(camera, localToWorld(el, p))),
+      );
+    } else {
+      const c = worldToScreen(camera, localToWorld(el, { x: el.width / 2, y: el.height / 2 }));
+      ctx.beginPath();
+      ctx.ellipse(
+        c.x,
+        c.y,
+        (el.width / 2 + pad) * camera.zoom,
+        (el.height / 2 + pad) * camera.zoom,
+        el.angle,
+        0,
+        Math.PI * 2,
+      );
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /** Snap guides: crisp lines with small crosses at the ends. */
+  private drawGuides(state: AppState): void {
+    const guides = state.overlay.guides;
+    if (guides.length === 0) return;
+    const { ctx } = this.overlay;
+    const { camera } = state;
+    ctx.save();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = GUIDE_COLOR;
+    ctx.beginPath();
+    for (const g of guides) {
+      const a = worldToScreen(
+        camera,
+        g.axis === 'x' ? { x: g.at, y: g.from } : { x: g.from, y: g.at },
+      );
+      const b = worldToScreen(camera, g.axis === 'x' ? { x: g.at, y: g.to } : { x: g.to, y: g.at });
+      const ax = Math.round(a.x) + 0.5;
+      const ay = Math.round(a.y) + 0.5;
+      const bx = Math.round(b.x) + 0.5;
+      const by = Math.round(b.y) + 0.5;
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      for (const [x, y] of [
+        [ax, ay],
+        [bx, by],
+      ] as const) {
+        ctx.moveTo(x - 3, y - 3);
+        ctx.lineTo(x + 3, y + 3);
+        ctx.moveTo(x + 3, y - 3);
+        ctx.lineTo(x - 3, y + 3);
+      }
+    }
+    ctx.stroke();
+    ctx.restore();
   }
 
   /** Dashed outline around the entered group's members. */
@@ -239,10 +334,23 @@ export class Renderer {
     const angle = frame?.rect.angle ?? 0;
     ctx.lineWidth = 1;
     ctx.strokeStyle = SELECTION_COLOR;
-    ctx.fillStyle = HANDLE_FILL;
+    const selectedPoints = state.linearEdit?.selected ?? [];
     for (const h of handles) {
       const c = worldToScreen(camera, h.center);
+      ctx.fillStyle =
+        h.kind.type === 'endpoint' && selectedPoints.includes(h.kind.index)
+          ? POINT_SELECTED_FILL
+          : HANDLE_FILL;
       ctx.beginPath();
+      if (h.kind.type === 'midpoint') {
+        // Smaller, translucent: adds a point when dragged.
+        ctx.globalAlpha = 0.6;
+        ctx.arc(c.x, c.y, half * 0.7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        continue;
+      }
       if (h.kind.type === 'resize') {
         ctx.save();
         ctx.translate(c.x, c.y);
@@ -286,6 +394,19 @@ export class Renderer {
     }
     ctx.setLineDash([]);
 
+    // Binding anchors of visible arrows.
+    ctx.fillStyle = DEBUG_ANCHOR_COLOR;
+    for (const id of this.visible) {
+      const el = state.scene.entities[id];
+      if (el?.type !== 'arrow') continue;
+      for (const b of [el.startBinding, el.endBinding]) {
+        const t = b ? state.scene.entities[b.elementId] : undefined;
+        if (!b || !t || !isBindable(t)) continue;
+        const c = worldToScreen(camera, anchorWorld(t, b.anchor));
+        ctx.fillRect(c.x - 3, c.y - 3, 6, 6);
+      }
+    }
+
     const lines = [
       this.debugLabels.fps(this.fps.fps),
       this.debugLabels.elements(this.visible.length, state.scene.order.length),
@@ -303,6 +424,52 @@ export class Renderer {
       ctx.fillText(line, x, y + i * 16);
     });
   }
+}
+
+/** Dots or lines every `gridSize` world units, thinned out when zoomed far out. */
+function drawGrid(ctx: CanvasRenderingContext2D, state: AppState): void {
+  const { camera, viewport } = state;
+  let step = state.gridSize;
+  while (step * camera.zoom < MIN_GRID_PX) step *= 2;
+  const view = visibleWorldBox(camera, viewport);
+  const x0 = Math.floor(view.minX / step) * step;
+  const y0 = Math.floor(view.minY / step) * step;
+  const dark = isDark(state.background);
+  ctx.save();
+  if (state.gridStyle === 'lines') {
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = dark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(30, 30, 40, 0.08)';
+    ctx.beginPath();
+    for (let x = x0; x <= view.maxX; x += step) {
+      const sx = Math.round(worldToScreen(camera, { x, y: 0 }).x) + 0.5;
+      ctx.moveTo(sx, 0);
+      ctx.lineTo(sx, viewport.height);
+    }
+    for (let y = y0; y <= view.maxY; y += step) {
+      const sy = Math.round(worldToScreen(camera, { x: 0, y }).y) + 0.5;
+      ctx.moveTo(0, sy);
+      ctx.lineTo(viewport.width, sy);
+    }
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = dark ? 'rgba(255, 255, 255, 0.22)' : 'rgba(30, 30, 40, 0.22)';
+    for (let x = x0; x <= view.maxX; x += step) {
+      const sx = worldToScreen(camera, { x, y: 0 }).x;
+      for (let y = y0; y <= view.maxY; y += step) {
+        const sy = worldToScreen(camera, { x: 0, y }).y;
+        ctx.fillRect(sx - 1, sy - 1, 2, 2);
+      }
+    }
+  }
+  ctx.restore();
+}
+
+/** Rough luminance test for `#rrggbb` backgrounds. */
+function isDark(color: string): boolean {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(color);
+  if (!m) return false;
+  const [r, g, b] = [m[1], m[2], m[3]].map((h) => parseInt(h ?? '0', 16));
+  return (r ?? 0) * 0.299 + (g ?? 0) * 0.587 + (b ?? 0) * 0.114 < 110;
 }
 
 /** Element/frame corners expanded by the selection pad (screen px) in its own frame. */

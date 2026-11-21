@@ -7,7 +7,9 @@ import type {
   ElementStyle,
   FillStyle,
   GroupId,
+  LinearCurve,
   LocalPoint,
+  PointBinding,
   Roughness,
   FontFamily,
   SceneElement,
@@ -35,6 +37,19 @@ const FAMILIES: readonly FontFamily[] = ['hand', 'sans', 'mono'];
 const ALIGNS: readonly TextAlign[] = ['left', 'center', 'right'];
 const VALIGNS: readonly VerticalAlign[] = ['top', 'middle', 'bottom'];
 const SIZINGS: readonly TextSizing[] = ['auto', 'fixed'];
+const CURVES: readonly LinearCurve[] = ['straight', 'curved'];
+
+/** A binding with a string target id and an anchor clamped to the target box. */
+function binding(raw: unknown, self: string): PointBinding | null {
+  if (!isRecord(raw) || !isRecord(raw.anchor)) return null;
+  const elementId = str(raw.elementId, 64);
+  if (elementId === null || elementId === self) return null;
+  const clamp = (v: unknown): number => Math.min(1, Math.max(0, finite(v, 0.5)));
+  return {
+    elementId: elementId as ElementId,
+    anchor: { x: clamp(raw.anchor.x), y: clamp(raw.anchor.y) },
+  };
+}
 
 type Raw = Record<string, unknown>;
 
@@ -147,7 +162,8 @@ export function sanitizeElement(raw: unknown): SceneElement | null {
       return { ...base, type: raw.type };
     case 'line': {
       const pts = points(raw.points);
-      return pts ? { ...base, type: 'line', points: pts } : null;
+      if (!pts) return null;
+      return { ...base, type: 'line', points: pts, curve: oneOf(raw.curve, CURVES, 'straight') };
     }
     case 'arrow': {
       const pts = points(raw.points);
@@ -156,8 +172,11 @@ export function sanitizeElement(raw: unknown): SceneElement | null {
         ...base,
         type: 'arrow',
         points: pts,
+        curve: oneOf(raw.curve, CURVES, 'straight'),
         startHead: oneOf(raw.startHead, ARROWHEADS, 'none'),
         endHead: oneOf(raw.endHead, ARROWHEADS, 'arrow'),
+        startBinding: binding(raw.startBinding, id),
+        endBinding: binding(raw.endBinding, id),
       };
     }
     case 'freedraw': {

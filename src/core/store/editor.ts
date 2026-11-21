@@ -10,6 +10,8 @@ import {
 } from '../history/history';
 import type { ElementId, Scene } from '../model/types';
 import { GridIndex } from '../spatial/grid-index';
+import { normalizeLinearEdit } from '../actions/linear-actions';
+import { syncBindings } from '../binding/binding';
 import { syncText } from '../text/bound';
 import { createInitialState, type AppState } from './app-state';
 import { createStore, type Listener, type Store } from './store';
@@ -33,6 +35,17 @@ export interface UpdateOptions {
  * History records scene changes. Inside a transaction (`begin`/`end`, nested)
  * every change collapses into one entry, so a whole drag is one undo step.
  */
+/**
+ * Derived-geometry pass run on every scene change: labels follow their
+ * containers and text sizes follow content, then bound arrows follow their
+ * targets (and their labels are re-placed).
+ */
+export function syncScene(prev: Scene | null, next: Scene): Scene {
+  const text = syncText(prev, next);
+  const bound = syncBindings(prev, text);
+  return bound === text ? text : syncText(text, bound);
+}
+
 export class Editor {
   readonly index = new GridIndex<ElementId>();
   readonly history = new History();
@@ -44,7 +57,7 @@ export class Editor {
   private now: () => number;
 
   constructor(initial: AppState = createInitialState(), now: () => number = () => Date.now()) {
-    const scene = syncText(null, initial.scene);
+    const scene = syncScene(null, initial.scene);
     this.store = createStore(scene === initial.scene ? initial : { ...initial, scene });
     this.now = now;
     this.syncIndex(null, scene);
@@ -66,9 +79,9 @@ export class Editor {
     const prev = this.store.getState();
     let next = fn(prev);
     if (next === prev) return;
+    if (next.linearEdit !== null) next = normalizeLinearEdit(next);
     if (next.scene !== prev.scene) {
-      // Labels follow their containers; text sizes follow their content.
-      const synced = syncText(prev.scene, next.scene);
+      const synced = syncScene(prev.scene, next.scene);
       if (synced !== next.scene) next = { ...next, scene: synced };
     }
     // An inline text edit is one undo step from opening to closing the editor.

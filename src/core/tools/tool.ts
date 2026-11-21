@@ -1,3 +1,4 @@
+import type { Box } from '../geometry/box';
 import type { Point } from '../geometry/vec';
 import type { ElementId } from '../model/types';
 import type { AppState, ToolId } from '../store/app-state';
@@ -24,6 +25,8 @@ export interface ToolContext {
   getState(): AppState;
   update(fn: (prev: AppState) => AppState, options?: UpdateOptions): void;
   hitTest(world: Point): ElementId | undefined;
+  /** Spatial-index broad phase: ids whose bounds may intersect `box`. */
+  readonly queryBox?: (box: Box) => ReadonlySet<ElementId>;
   /** Opens a history transaction spanning several pointer gestures (polylines). */
   begin?(): void;
   end?(): void;

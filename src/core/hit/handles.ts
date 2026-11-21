@@ -1,6 +1,7 @@
 import { screenToWorld, worldToScreen } from '../camera/camera';
 import { boxUnion, type Box } from '../geometry/box';
 import { localToWorld } from '../geometry/element-geometry';
+import { catmullRomSegments } from '../geometry/linear-path';
 import { rectAABB, rectCenter, toRectLocal, type RectLike } from '../geometry/rect';
 import { RESIZE_HANDLE_DIRS, type ResizeHandle } from '../geometry/transform';
 import { distance, rotateAround, type Point } from '../geometry/vec';
@@ -21,7 +22,10 @@ export const SELECTION_PAD_PX = 4;
 export type HandleKind =
   | { readonly type: 'resize'; readonly handle: ResizeHandle }
   | { readonly type: 'rotate' }
-  | { readonly type: 'endpoint'; readonly index: number };
+  /** A line/arrow point (any point in the point editor, else an end). */
+  | { readonly type: 'endpoint'; readonly index: number }
+  /** Midpoint of segment `index → index + 1`; dragging it inserts a point. */
+  | { readonly type: 'midpoint'; readonly index: number };
 
 export interface SelectionHandle {
   readonly kind: HandleKind;
@@ -67,10 +71,17 @@ export function getSelectionFrame(state: AppState): SelectionFrame | null {
   };
 }
 
-/** True for a single selected 2-point line or arrow, which shows endpoint handles only. */
-export function usesEndpointHandles(el: SceneElement | null): boolean {
-  return el !== null && (el.type === 'line' || el.type === 'arrow') && el.points.length === 2;
+/**
+ * True when the single selection shows point handles instead of a box: a
+ * 2-point line or arrow, or the line/arrow open in the point editor.
+ */
+export function usesEndpointHandles(el: SceneElement | null, state?: AppState): boolean {
+  if (el === null || (el.type !== 'line' && el.type !== 'arrow')) return false;
+  return el.points.length === 2 || state?.linearEdit?.id === el.id;
 }
+
+/** Midpoint handles appear only on segments at least this long on screen. */
+const MIN_MIDPOINT_SEGMENT_PX = 24;
 
 const HANDLE_ORDER: readonly ResizeHandle[] = ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
 
@@ -85,13 +96,33 @@ export function getSelectionHandles(
 
   if (
     single &&
-    usesEndpointHandles(single) &&
-    (single.type === 'line' || single.type === 'arrow')
+    (single.type === 'line' || single.type === 'arrow') &&
+    usesEndpointHandles(single, state)
   ) {
-    return single.points.map((p, index) => {
-      const w = localToWorld(single, p);
-      return { kind: { type: 'endpoint', index }, anchor: w, center: w };
-    });
+    const world = single.points.map((p) => localToWorld(single, p));
+    const out: SelectionHandle[] = world.map((w, index) => ({
+      kind: { type: 'endpoint', index },
+      anchor: w,
+      center: w,
+    }));
+    if (state.linearEdit?.id === single.id) {
+      // On a curve the handle sits on the spline (t = ½ of its segment).
+      const segs = single.curve === 'curved' ? catmullRomSegments(world) : null;
+      for (let index = 0; index < world.length - 1; index++) {
+        const a = world[index];
+        const b = world[index + 1];
+        if (!a || !b || distance(a, b) * zoom < MIN_MIDPOINT_SEGMENT_PX) continue;
+        const s = segs?.[index];
+        const m = s
+          ? {
+              x: (s.p1.x + 3 * s.c1.x + 3 * s.c2.x + s.p2.x) / 8,
+              y: (s.p1.y + 3 * s.c1.y + 3 * s.c2.y + s.p2.y) / 8,
+            }
+          : { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        out.push({ kind: { type: 'midpoint', index }, anchor: m, center: m });
+      }
+    }
+    return out;
   }
 
   const r = frame.rect;
@@ -151,7 +182,7 @@ export function insideSelectionFrame(
   screen: Point,
   frame = getSelectionFrame(state),
 ): boolean {
-  if (!frame || usesEndpointHandles(frame.single)) return false;
+  if (!frame || usesEndpointHandles(frame.single, state)) return false;
   const local = toRectLocal(frame.rect, screenToWorld(state.camera, screen));
   const pad = SELECTION_PAD_PX / state.camera.zoom;
   return (

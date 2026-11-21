@@ -10,8 +10,8 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 | 2   | Core Shapes & Transform Geometry  | Done                                |
 | 3   | Hand-Drawn Renderer & Style Panel | Done                                |
 | 4   | Editing Core & History            | Done                                |
-| 5   | Text & Bound Labels               | **Done**: awaiting browser sign-off |
-| 6   | Arrow Binding & Snapping          | —                                   |
+| 5   | Text & Bound Labels               | Done                                |
+| 6   | Arrow Binding & Snapping          | **Done**: awaiting browser sign-off |
 | 7   | Persistence, Files & Export       | — (planned split: 7a / 7b)          |
 | 8   | UX Polish, A11y & Offline PWA     | —                                   |
 
@@ -29,6 +29,8 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 - M4 (flagged, not yet confirmed): Ctrl/⌘+D duplicates (offset 16). Alt+drag duplicates. A click selects the outermost group; double-click enters it (focus group, dashed frame). Ctrl/⌘+click picks a single member. The marquee selects only fully enclosed, unlocked elements. Clipboard is JSON `text/plain` with kind `tabula/clipboard`; paste goes to the pointer, Ctrl/⌘+Shift+V pastes in place. Locked elements cannot be selected by click or marquee and are skipped by every edit; "Unlock all" is in the canvas menu. History keeps scene changes only (selection is restored with them), max 200 entries, keyed edits coalesce within 1 s.
 
 - M5 (flagged, not yet confirmed): T selects the text tool; a click makes auto-width text, a drag makes fixed-width (wrapping) text. Double-click (or Enter on a selection) edits text, or labels the shape or arrow under the pointer; double-clicking inside an unfilled box labels it. Esc, blur or Ctrl/⌘+Enter closes the editor, and empty text is deleted. One edit = one undo step. Labels default to centre/middle in the container's stroke color. A box container grows taller to fit its label (it never shrinks back). Arrow labels sit on the midpoint, unrotated, on a background-colored backdrop. Text resize: corners scale the font size, left/right handles set a wrap width, top/bottom do nothing. Text color is the stroke color.
+
+- M6 (flagged, not yet confirmed): arrow ends dropped within 16 px of a rectangle, diamond, ellipse or free text attach to it (Ctrl/⌘ bypasses), with a 4 px gap plus half of each stroke. The anchor is stored normalized, so ends follow moves and resizes. A two-point arrow never binds both ends to the same shape. Moving an arrow on its own detaches its bound ends; undo restores them. Copies keep bindings only to targets copied with them. Lines and arrows can be curved (Catmull-Rom through the points). Point editor: double-click a line, or Ctrl/⌘+Enter (context menu "Edit points") for a line or arrow, since double-click on an arrow still edits its label. Click a point to select it, Shift adds to the selection, Delete removes points (min 2), drag a translucent midpoint to insert one, Esc closes. Grid: Ctrl/⌘+' toggles it (dots or lines, 10/20/40 spacing in the canvas menu); snap-to-grid is on by default and applies only while the grid is visible. Object snap (Alt+S, off by default) aligns edges and centres to on-screen elements and shows pink guides. Objects win over the grid per axis. Rotated resize handles do not snap.
 
 ## Locked invariants
 
@@ -49,6 +51,8 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 - **History**: `Editor.update` records scene changes. `begin`/`end` collapse a gesture into one entry; `{history: 'skip'}` leaves a change out; any other string key coalesces. Tools wrap gestures in transactions.
 - **Groups**: `groupIds` are innermost first. Selection target = outermost group, or the next group inside `focusGroup`.
 - **Text**: `TextElement {text, fontFamily, fontSize, textAlign, verticalAlign, sizing: auto|fixed, containerId}`. Bound text (`containerId` set) is never selected, hit or moved directly; `syncText` (run in `Editor.update` on every scene change) removes orphans, refits text and places labels. Layout uses a swappable `TextMeasurer` (canvas in the app, a deterministic approximation in tests); line height is 1.25 em.
+- **Bindings**: `ArrowElement.startBinding/endBinding: {elementId, anchor}` (anchor normalized 0–1 in the target box). `syncScene` = `syncText → syncBindings → syncText` runs on every scene change; it re-places bound ends and drops bindings to missing targets. An end is detached only when the arrow itself moved it (same binding object, unchanged target) and the end is not already where the binding would put it (undo-safe).
+- **Point editor** state is `AppState.linearEdit {id, selected}`, normalized in `Editor.update` (it closes when the element is no longer the sole unlocked selection).
 - **Dev-only commands** (`devOnly: true`) are filtered out of production bindings.
 
 ## Module map
@@ -81,7 +85,12 @@ src/core/actions    edit-actions.ts (select all, delete, duplicate, group, z-ord
 src/core/text       fonts (stacks, sizes), measure (TextMeasurer), layout (wrapText, layoutOf cache),
                     bound (syncText, placeBoundText, containers), resize (text resize rules)
 src/core/actions    text-actions.ts (open/close editor, createTextAt, editTextAt, labels)
-src/core/{binding,snapping,persist}   empty; reserved for M6/M7
+src/core/binding    binding.ts (bindable shapes, outlineHit, anchors, placeBoundArrow, syncBindings)
+src/core/snapping   snapping.ts (snapContext per gesture, snapBox, snapPoint, guides)
+src/core/actions    linear-actions.ts (points, bindings, point editor), view-actions.ts (grid/snap)
+src/core/tools      bind-assist.ts (bind candidate under pointer), overlay.ts (overlay patching)
+src/core/geometry   linear-path.ts (curved path sampling)
+src/core/persist    empty; reserved for M7
 src/i18n            en.ts (string table), t.ts
 src/app             main.tsx (entry), create-app.ts (wires services), App.tsx, text-setup.ts
 src/ui              Canvas.tsx (pointer/wheel/resize), Toolbar.tsx, StylePanel.tsx, icons.tsx,
@@ -105,7 +114,7 @@ Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
 
 - No persistence (M7). Reload loses everything.
 - The multi-selection frame is an axis-aligned union box recomputed every frame, so it changes size during group rotation.
-- Lines have no mid-point or point-insert editing; only 2-point lines get endpoint handles. Curved and elbow arrows are out of scope (straight only).
+- Elbow arrows are out of scope. Bound arrows do not route around obstacles.
 - At opacity below 100% a solid fill and its outline overlap and the overlap looks slightly darker (layers are composited separately).
 - The eyedropper uses the browser EyeDropper API (Chromium only) and is hidden elsewhere.
 - The style panel has no keyboard shortcuts yet (M8).
@@ -119,8 +128,8 @@ Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
 
 `npm run dev` · `npm run typecheck` · `npm test` · `npm run lint` · `npm run format` · `npm run build`
 
-## Next: Milestone 6 starting point
+## Next: Milestone 7 starting point
 
-1. Arrow endpoints bind to shapes (gap, follow on move/resize, unbind on drag away).
-2. Grid toggle and snapping to grid / objects.
-3. Line vertex editing.
+1. IndexedDB autosave, drawings list with thumbnails, `.tabula` schema + migrations.
+2. File System Access open/save with download fallback; BroadcastChannel across tabs.
+3. Images (with GC), PNG/SVG export with embedded scene and re-import.

@@ -36,5 +36,8 @@ export const DEFAULT_BINDINGS: readonly KeyBinding[] = [
   { combo: 'Shift+ArrowRight', command: 'nudge.rightFar' },
   { combo: 'Shift+ArrowUp', command: 'nudge.upFar' },
   { combo: 'Shift+ArrowDown', command: 'nudge.downFar' },
+  { combo: 'Mod+Enter', command: 'edit.points' },
+  { combo: "Mod+'", command: 'view.grid' },
+  { combo: 'Alt+S', command: 'view.objectSnap' },
   { combo: 'Mod+Shift+D', command: 'debug.toggle' },
 ];

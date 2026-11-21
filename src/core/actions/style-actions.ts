@@ -1,6 +1,12 @@
 import { replaceElements } from '../model/scene';
 import { isPaletteColor, MAX_RECENT_COLORS, normalizeHex } from '../model/palette';
-import type { Arrowhead, ElementStyle, ElementType, SceneElement } from '../model/types';
+import type {
+  Arrowhead,
+  ElementStyle,
+  ElementType,
+  LinearCurve,
+  SceneElement,
+} from '../model/types';
 import { boundTextOf, isTextContainer } from '../text/bound';
 import { clampFontSize } from '../text/fonts';
 import {
@@ -16,6 +22,7 @@ import {
 export interface FullStyle extends ElementStyle, TextProps {
   readonly startHead: Arrowhead;
   readonly endHead: Arrowhead;
+  readonly curve: LinearCurve;
 }
 
 const TEXT_KEYS = ['fontFamily', 'fontSize', 'textAlign', 'verticalAlign'] as const;
@@ -37,6 +44,7 @@ export const STYLE_KEYS: readonly StyleKey[] = [
   'roughness',
   'corners',
   'opacity',
+  'curve',
   'startHead',
   'endHead',
   'fontFamily',
@@ -69,6 +77,8 @@ export function supportsStyle(type: ElementType, key: StyleKey): boolean {
     case 'startHead':
     case 'endHead':
       return type === 'arrow';
+    case 'curve':
+      return type === 'line' || type === 'arrow';
   }
 }
 
@@ -98,6 +108,7 @@ function fullStyleOf(el: SceneElement, memory: StyleMemory): FullStyle {
     el.type === 'arrow'
       ? { startHead: el.startHead, endHead: el.endHead }
       : { startHead: memory.arrowHeads.start, endHead: memory.arrowHeads.end };
+  const curve = el.type === 'arrow' || el.type === 'line' ? el.curve : memory.curve;
   const text: TextProps =
     el.type === 'text'
       ? {
@@ -107,7 +118,7 @@ function fullStyleOf(el: SceneElement, memory: StyleMemory): FullStyle {
           verticalAlign: el.verticalAlign,
         }
       : memory.textProps;
-  return { ...el.style, ...heads, ...text };
+  return { ...el.style, ...heads, curve, ...text };
 }
 
 /** Remembered style a drawing tool will use for its next element. */
@@ -117,6 +128,7 @@ export function rememberedStyle(state: AppState, type: ElementType): FullStyle {
     ...m[categoryOfType(type)],
     startHead: m.arrowHeads.start,
     endHead: m.arrowHeads.end,
+    curve: m.curve,
     ...m.textProps,
   };
 }
@@ -180,8 +192,16 @@ function patchFor(type: ElementType, patch: StylePatch): StylePatch {
 }
 
 function withPatch(el: SceneElement, patch: StylePatch): SceneElement {
-  const { startHead, endHead, fontFamily, fontSize, textAlign, verticalAlign, ...stylePart } =
-    patch;
+  const {
+    startHead,
+    endHead,
+    curve: curvePatch,
+    fontFamily,
+    fontSize,
+    textAlign,
+    verticalAlign,
+    ...stylePart
+  } = patch;
   if (el.type === 'text') {
     const style = { ...el.style, ...stylePart };
     const styleChanged = (Object.keys(stylePart) as (keyof ElementStyle)[]).some(
@@ -213,14 +233,22 @@ function withPatch(el: SceneElement, patch: StylePatch): SceneElement {
   if (el.type === 'arrow') {
     const start = startHead ?? el.startHead;
     const end = endHead ?? el.endHead;
-    if (!styleChanged && start === el.startHead && end === el.endHead) return el;
+    const curve = curvePatch ?? el.curve;
+    if (!styleChanged && start === el.startHead && end === el.endHead && curve === el.curve)
+      return el;
     return {
       ...el,
       style: styleChanged ? style : el.style,
       startHead: start,
       endHead: end,
+      curve,
       revision: el.revision + 1,
     };
+  }
+  if (el.type === 'line') {
+    const curve = curvePatch ?? el.curve;
+    if (!styleChanged && curve === el.curve) return el;
+    return { ...el, style: styleChanged ? style : el.style, curve, revision: el.revision + 1 };
   }
   if (!styleChanged) return el;
   return { ...el, style, revision: el.revision + 1 };
@@ -231,7 +259,7 @@ function rememberStyle(
   category: StyleCategory,
   patch: StylePatch,
 ): StyleMemory {
-  const { startHead, endHead, ...rest } = patch;
+  const { startHead, endHead, curve, ...rest } = patch;
   const stylePart: Partial<ElementStyle> = {};
   const textPart: Partial<Record<TextKey, unknown>> = {};
   for (const [k, v] of Object.entries(rest)) {
@@ -257,6 +285,7 @@ function rememberStyle(
       },
     };
   }
+  if (curve !== undefined && curve !== next.curve) next = { ...next, curve };
   return next;
 }
 

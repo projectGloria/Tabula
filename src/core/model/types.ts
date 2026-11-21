@@ -73,16 +73,33 @@ interface PointsElementBase extends BaseElement {
   readonly points: readonly LocalPoint[];
 }
 
+/** `straight` joins points with segments; `curved` runs a smooth spline through them. */
+export type LinearCurve = 'straight' | 'curved';
+
 export interface LineElement extends PointsElementBase {
   readonly type: 'line';
+  readonly curve: LinearCurve;
 }
 
 export type Arrowhead = 'none' | 'arrow' | 'triangle' | 'bar' | 'dot' | 'diamond';
 
+/**
+ * An arrow endpoint attached to a shape. `anchor` is the point the arrow aims
+ * at, normalized to the target's unrotated box (0..1 on each axis). The
+ * endpoint itself sits on the target's outline, a small gap away.
+ */
+export interface PointBinding {
+  readonly elementId: ElementId;
+  readonly anchor: LocalPoint;
+}
+
 export interface ArrowElement extends PointsElementBase {
   readonly type: 'arrow';
+  readonly curve: LinearCurve;
   readonly startHead: Arrowhead;
   readonly endHead: Arrowhead;
+  readonly startBinding: PointBinding | null;
+  readonly endBinding: PointBinding | null;
 }
 
 export interface FreedrawElement extends PointsElementBase {

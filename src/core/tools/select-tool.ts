@@ -7,9 +7,17 @@ import {
   setSelection,
 } from '../actions/actions';
 import { duplicateElements, setFocusGroup } from '../actions/edit-actions';
+import {
+  closeLinearEdit,
+  insertLinearPoint,
+  openLinearEdit,
+  selectLinearPoints,
+  setLinearPoints,
+  type EndBindings,
+} from '../actions/linear-actions';
 import { editTextAt } from '../actions/text-actions';
-import { boxContainsBox, boxFromRect, type Box } from '../geometry/box';
-import { pointsPatchFromWorld, worldPointsOf } from '../geometry/element-geometry';
+import { boxContainsBox, boxFromRect, boxUnion, type Box } from '../geometry/box';
+import { worldPointsOf } from '../geometry/element-geometry';
 import { rectAABB, rectCenter, type RectLike } from '../geometry/rect';
 import {
   angleAround,
@@ -33,9 +41,12 @@ import {
 } from '../hit/handles';
 import { expandToGroups, selectionTargetGroup } from '../model/groups';
 import type { GeometryPatch } from '../model/scene';
-import type { ElementId, LinearElement, SceneElement } from '../model/types';
-import { EMPTY_OVERLAY, isSelected, selectedIds, type AppState } from '../store/app-state';
+import type { ElementId, SceneElement } from '../model/types';
+import { snapBox, snapContext, snapPoint, type SnapContext } from '../snapping/snapping';
+import { isSelected, selectedIds, type AppState } from '../store/app-state';
+import { bindCandidate } from './bind-assist';
 import { snapSegment } from './constrain';
+import { clearOverlay, setOverlay } from './overlay';
 import { DRAG_THRESHOLD_PX, type PointerInput, type Tool, type ToolContext } from './tool';
 
 interface PressBase {
@@ -55,6 +66,7 @@ interface MovePress extends PressBase {
   sources: readonly ElementId[] | null;
   /** Elements being moved, as they were when the drag began. */
   moving: ReadonlyMap<ElementId, SceneElement>;
+  snap: SnapContext | null;
 }
 
 interface ResizePress extends PressBase {
@@ -64,6 +76,7 @@ interface ResizePress extends PressBase {
   /** Exact world position of the grabbed handle on the unpadded frame. */
   readonly handleWorld: Point;
   readonly single: boolean;
+  readonly snap: SnapContext;
 }
 
 interface RotatePress extends PressBase {
@@ -75,9 +88,13 @@ interface RotatePress extends PressBase {
 
 interface EndpointPress extends PressBase {
   readonly type: 'endpoint';
-  readonly element: LinearElement;
-  readonly index: number;
+  readonly id: ElementId;
+  /** Point being dragged; set once a midpoint drag has inserted its point. */
+  index: number;
+  /** Midpoint drag: insert a point after this index on the first move. */
+  insertAfter: number | null;
   readonly grabOffset: Point;
+  readonly snap: SnapContext;
 }
 
 interface MarqueePress extends PressBase {
@@ -95,10 +112,6 @@ function snapshot(state: AppState, ids: Iterable<ElementId>): Map<ElementId, Sce
     if (el && !el.locked) out.set(id, el);
   }
   return out;
-}
-
-function clearOverlay(s: AppState): AppState {
-  return s.overlay.marquee === null ? s : { ...s, overlay: EMPTY_OVERLAY };
 }
 
 /** Unlocked elements whose bounds lie fully inside `box`. */
@@ -149,6 +162,7 @@ export class SelectTool implements Tool {
           frame: frame.rect,
           handleWorld: handle.anchor,
           single: frame.single !== null,
+          snap: snapContext(state, originals.keys(), ctx.queryBox),
         };
       } else if (kind.type === 'rotate') {
         const pivot = rectCenter(frame.rect);
@@ -163,13 +177,29 @@ export class SelectTool implements Tool {
       } else {
         const el = frame.single;
         if (el?.type !== 'line' && el?.type !== 'arrow') return;
+        const point = kind.type === 'endpoint';
+        if (point && state.linearEdit?.id === el.id) {
+          // Clicking a point selects it; Shift adds or removes it.
+          const sel = state.linearEdit.selected;
+          const has = sel.includes(kind.index);
+          const next = e.shift
+            ? has
+              ? sel.filter((i) => i !== kind.index)
+              : [...sel, kind.index]
+            : has
+              ? sel
+              : [kind.index];
+          ctx.update((s) => selectLinearPoints(s, next));
+        }
         this.press = {
           ...base,
           type: 'endpoint',
           originals,
-          element: el,
-          index: kind.index,
+          id: el.id,
+          index: point ? kind.index : kind.index + 1,
+          insertAfter: point ? null : kind.index,
           grabOffset: { x: handle.anchor.x - e.world.x, y: handle.anchor.y - e.world.y },
+          snap: snapContext(state, [el.id], ctx.queryBox),
         };
       }
       return;
@@ -215,12 +245,23 @@ export class SelectTool implements Tool {
     this.startMove(next, base, e.alt);
   }
 
-  /** Double-click enters the group under the pointer, one level per click. */
+  /**
+   * Double-click enters the group under the pointer, one level per click;
+   * on a line it opens the point editor; otherwise it edits text or a label.
+   */
   onDoubleClick(ctx: ToolContext, e: PointerInput): void {
     const hit = ctx.hitTest(e.world);
     const state = ctx.getState();
     const el = hit === undefined ? undefined : state.scene.entities[hit];
     const group = el ? selectionTargetGroup(el, state.focusGroup) : null;
+    if (state.linearEdit !== null && (hit === undefined || hit === state.linearEdit.id)) {
+      if (hit === undefined) ctx.update(closeLinearEdit);
+      return;
+    }
+    if (el?.type === 'line' && !el.locked && group === null) {
+      ctx.update((s) => openLinearEdit(setSelection(s, [el.id]), el.id));
+      return;
+    }
     if (hit !== undefined && group !== null) {
       ctx.update((s) => {
         const focused = setFocusGroup(s, group);
@@ -264,9 +305,8 @@ export class SelectTool implements Tool {
   onPointerUp(ctx: ToolContext, e: PointerInput): void {
     if (this.press?.pointerId !== e.pointerId) return;
     this.onPointerMove(ctx, e);
-    const p = this.press;
     this.press = null;
-    if (p.type === 'marquee') ctx.update(clearOverlay, { history: 'skip' });
+    ctx.update(clearOverlay, { history: 'skip' });
     this.updateHover(ctx, e);
   }
 
@@ -274,6 +314,7 @@ export class SelectTool implements Tool {
     const p = this.press;
     if (!p) return;
     this.press = null;
+    ctx.update(clearOverlay, { history: 'skip' });
     if (p.type === 'marquee') {
       const initial = p.initial;
       ctx.update((s) => setSelection(clearOverlay(s), initial));
@@ -290,7 +331,15 @@ export class SelectTool implements Tool {
 
   private startMove(state: AppState, base: Omit<PressBase, 'originals'>, duplicate: boolean): void {
     const originals = snapshot(state, selectedIds(state));
-    this.press = { ...base, type: 'move', originals, duplicate, sources: null, moving: originals };
+    this.press = {
+      ...base,
+      type: 'move',
+      originals,
+      duplicate,
+      sources: null,
+      moving: originals,
+      snap: null,
+    };
   }
 
   /** Alt-drag: copies stay where the originals were placed; the drag moves the copies. */
@@ -341,18 +390,36 @@ export class SelectTool implements Tool {
   }
 
   private applyMove(ctx: ToolContext, p: MovePress, e: PointerInput): void {
-    const dx = e.world.x - p.startWorld.x;
-    const dy = e.world.y - p.startWorld.y;
+    p.snap ??= snapContext(ctx.getState(), p.moving.keys(), ctx.queryBox);
+    let dx = e.world.x - p.startWorld.x;
+    let dy = e.world.y - p.startWorld.y;
+    let box: Box | null = null;
+    for (const o of p.moving.values()) box = box ? boxUnion(box, rectAABB(o)) : rectAABB(o);
+    let guides: ReturnType<typeof snapBox>['guides'] = [];
+    if (box) {
+      const r = snapBox(p.snap, {
+        minX: box.minX + dx,
+        minY: box.minY + dy,
+        maxX: box.maxX + dx,
+        maxY: box.maxY + dy,
+      });
+      dx += r.dx;
+      dy += r.dy;
+      guides = r.guides;
+    }
     const positions = new Map<ElementId, Point>();
     for (const [id, o] of p.moving) positions.set(id, { x: o.x + dx, y: o.y + dy });
-    ctx.update((s) => setElementPositions(s, positions));
+    ctx.update((s) => setOverlay(setElementPositions(s, positions), { guides }));
   }
 
   private applyResize(ctx: ToolContext, p: ResizePress, e: PointerInput): void {
-    const target = {
+    const raw = {
       x: p.handleWorld.x + e.world.x - p.startWorld.x,
       y: p.handleWorld.y + e.world.y - p.startWorld.y,
     };
+    // Snapping a rotated frame's handle to axis-aligned guides would skew it.
+    const snapped = p.frame.angle === 0 ? snapPoint(p.snap, raw) : { point: raw, guides: [] };
+    const target = snapped.point;
     const dir = RESIZE_HANDLE_DIRS[p.handle];
     const corner = dir.x !== 0 && dir.y !== 0;
     const soloText = p.single && [...p.originals.values()].some((el) => el.type === 'text');
@@ -372,7 +439,11 @@ export class SelectTool implements Tool {
         patches.set(id, g);
       }
     }
-    ctx.update((s) => restoreElements(setElementGeometry(s, patches), texts));
+    ctx.update((s) =>
+      setOverlay(restoreElements(setElementGeometry(s, patches), texts), {
+        guides: snapped.guides,
+      }),
+    );
   }
 
   private applyRotate(ctx: ToolContext, p: RotatePress, e: PointerInput): void {
@@ -389,14 +460,58 @@ export class SelectTool implements Tool {
     ctx.update((s) => setElementGeometry(s, patches));
   }
 
+  /**
+   * Drags one point of a line/arrow. Works from the element's current points
+   * so ends placed by bindings stay put. An arrow end over a shape attaches
+   * to it (Ctrl/⌘: never); otherwise Shift snaps the segment to its
+   * neighbour to 15°, and the point snaps to objects / the grid.
+   */
   private applyEndpoint(ctx: ToolContext, p: EndpointPress, e: PointerInput): void {
-    const el = p.element;
+    const raw = { x: e.world.x + p.grabOffset.x, y: e.world.y + p.grabOffset.y };
+    if (p.insertAfter !== null) {
+      const after = p.insertAfter;
+      p.insertAfter = null;
+      ctx.update((s) => {
+        const next = insertLinearPoint(s, p.id, after, raw);
+        return next.linearEdit?.id === p.id ? selectLinearPoints(next, [after + 1]) : next;
+      });
+    }
+    const state = ctx.getState();
+    const el = state.scene.entities[p.id];
+    if (el?.type !== 'line' && el?.type !== 'arrow') return;
     const pts = worldPointsOf(el);
-    let target = { x: e.world.x + p.grabOffset.x, y: e.world.y + p.grabOffset.y };
-    const other = pts[p.index === 0 ? 1 : 0];
-    if (e.shift && other) target = snapSegment(other, target);
+    const last = pts.length - 1;
+    if (p.index < 0 || p.index > last) return;
+    const isEnd = p.index === 0 || p.index === last;
+    let target = raw;
+    let guides: ReturnType<typeof snapPoint>['guides'] = [];
+    let bindings: EndBindings = {};
+    let bindTarget: ElementId | null = null;
+    const cand =
+      el.type === 'arrow' && isEnd
+        ? bindCandidate(ctx, raw, e.mod, this.otherEndExclude(el, p.index))
+        : null;
+    if (cand) {
+      bindTarget = cand.target.id;
+    } else {
+      const neighbour = pts[p.index === 0 ? 1 : p.index - 1];
+      if (e.shift && neighbour) target = snapSegment(neighbour, raw);
+      else ({ point: target, guides } = snapPoint(p.snap, raw));
+    }
+    if (el.type === 'arrow' && isEnd) {
+      const b = cand?.binding ?? null;
+      bindings = p.index === 0 ? { start: b } : { end: b };
+    }
     pts[p.index] = target;
-    const patch = pointsPatchFromWorld(el.angle, pts);
-    ctx.update((s) => setElementGeometry(s, new Map([[el.id, patch]])));
+    ctx.update((s) => setOverlay(setLinearPoints(s, p.id, pts, bindings), { bindTarget, guides }));
+  }
+
+  /** The arrow itself, plus (two-point arrows) the shape the other end is on. */
+  private otherEndExclude(el: SceneElement, index: number): Set<ElementId> {
+    const out = new Set([el.id]);
+    if (el.type !== 'arrow' || el.points.length !== 2) return out;
+    const other = index === 0 ? el.endBinding : el.startBinding;
+    if (other) out.add(other.elementId);
+    return out;
   }
 }

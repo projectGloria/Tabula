@@ -5,6 +5,7 @@ import {
   freedrawOutline,
   strokePx,
 } from '../../geometry/element-shape';
+import { catmullRomSegments, linearPathPoints } from '../../geometry/linear-path';
 import type { Point } from '../../geometry/vec';
 import type {
   ArrowElement,
@@ -224,7 +225,25 @@ function linearDrawable(el: LinearElement): Drawable {
   const passes = passesFor(rough, style.strokePattern);
   const pb = new PathBuilder();
   const first = points[0];
-  if (first && points.length > 1) {
+  const curved = el.curve === 'curved' && points.length > 2;
+  if (first && curved) {
+    const k = amplitude(rough, pathLength(linearPathPoints(el)));
+    const rng = rngFor(seed, STREAM_OUTLINE);
+    const runs = rough === 0 ? 1 : passes;
+    for (let pass = 0; pass < runs; pass++) {
+      // Each pass jitters the control points, then runs the spline through them.
+      const v =
+        rough === 0
+          ? points
+          : points.map((p) => ({
+              x: p.x + rng.signed() * k * 0.5,
+              y: p.y + rng.signed() * k * 0.5,
+            }));
+      const segs = catmullRomSegments(v);
+      pb.moveTo(itemAt(v, 0));
+      for (const s of segs) pb.curveTo(s.c1, s.c2, s.p2);
+    }
+  } else if (first && points.length > 1) {
     if (rough === 0) {
       pb.moveTo(first);
       for (let i = 1; i < points.length; i++) pb.lineTo(itemAt(points, i));
@@ -253,8 +272,19 @@ function linearDrawable(el: LinearElement): Drawable {
   return { layers };
 }
 
+function pathLength(pts: readonly Point[]): number {
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const a = itemAt(pts, i - 1);
+    const b = itemAt(pts, i);
+    total += Math.hypot(b.x - a.x, b.y - a.y);
+  }
+  return total;
+}
+
 function headLayers(el: ArrowElement, w: number, passes: number): SketchLayer[] {
-  const pts = el.points;
+  // Heads follow the drawn path, so a curved arrow's head points along the curve.
+  const pts = linearPathPoints(el);
   const n = pts.length;
   const p0 = pts[0];
   const p1 = pts[1];

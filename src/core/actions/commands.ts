@@ -2,7 +2,15 @@ import type { I18nKey } from '../../i18n/en';
 import { selectedIds, type AppState, type ToolId } from '../store/app-state';
 import type { Editor } from '../store/editor';
 import { clearSelection, setTool, toggleDebug } from './actions';
+import { closeLinearEdit, deleteLinearPoints, openLinearEdit } from './linear-actions';
 import { canEditSelectedText, editSelectedText } from './text-actions';
+import {
+  setGridSize,
+  setGridStyle,
+  toggleGrid,
+  toggleGridSnap,
+  toggleObjectSnap,
+} from './view-actions';
 import {
   alignSelection,
   deleteSelection,
@@ -36,6 +44,8 @@ export interface Command {
   readonly repeat?: boolean;
   /** Whether the command can run now (menus grey it out otherwise). */
   readonly enabled?: (state: AppState) => boolean;
+  /** Toggle state, for commands shown as checkable menu items. */
+  readonly checked?: (state: AppState) => boolean;
   /** A pure state transition… */
   readonly run?: (state: AppState) => AppState;
   /** …or an editor-level effect (undo/redo). */
@@ -84,6 +94,14 @@ export type CommandId =
   | 'nudge.rightFar'
   | 'nudge.upFar'
   | 'nudge.downFar'
+  | 'edit.points'
+  | 'view.grid'
+  | 'view.gridSnap'
+  | 'view.gridLines'
+  | 'view.gridSize10'
+  | 'view.gridSize20'
+  | 'view.gridSize40'
+  | 'view.objectSnap'
   | 'debug.toggle';
 
 /** Runs a command against an editor (shared by keymap, menus and palette). */
@@ -103,6 +121,33 @@ export const NUDGE_FAR = 10;
 
 function hasSelection(s: AppState): boolean {
   return selectedIds(s).length > 0;
+}
+
+/** A single unlocked line or arrow is selected (the point editor can open). */
+function canEditPoints(s: AppState): boolean {
+  const ids = selectedIds(s);
+  const el = ids.length === 1 && ids[0] !== undefined ? s.scene.entities[ids[0]] : undefined;
+  return (el?.type === 'line' || el?.type === 'arrow') && !el.locked;
+}
+
+/** Delete removes the selected points in the point editor, else the selection. */
+function deleteSelectionOrPoints(s: AppState): AppState {
+  const le = s.linearEdit;
+  if (le && le.selected.length > 0) {
+    const next = deleteLinearPoints(s, le.id, le.selected);
+    if (next !== s) return next;
+  }
+  return deleteSelection(s);
+}
+
+function gridSize(id: CommandId, size: number): Command {
+  return {
+    id,
+    labelKey:
+      size === 10 ? 'command.gridSmall' : size === 20 ? 'command.gridMedium' : 'command.gridLarge',
+    checked: (s) => s.gridSize === size,
+    run: (s) => setGridSize(s, size),
+  };
 }
 
 function multi(min: number) {
@@ -152,7 +197,12 @@ export const COMMANDS: Readonly<Record<CommandId, Command>> = {
     enabled: canEditSelectedText,
     run: editSelectedText,
   },
-  'selection.clear': { id: 'selection.clear', labelKey: 'command.deselect', run: deselect },
+  'selection.clear': {
+    id: 'selection.clear',
+    labelKey: 'command.deselect',
+    // Escape leaves the point editor before it clears the selection.
+    run: (s) => (s.linearEdit ? closeLinearEdit(s) : deselect(s)),
+  },
   'selection.all': { id: 'selection.all', labelKey: 'command.selectAll', run: selectAll },
   'history.undo': {
     id: 'history.undo',
@@ -174,7 +224,7 @@ export const COMMANDS: Readonly<Record<CommandId, Command>> = {
     id: 'edit.delete',
     labelKey: 'command.delete',
     enabled: hasSelection,
-    run: deleteSelection,
+    run: deleteSelectionOrPoints,
   },
   'edit.duplicate': {
     id: 'edit.duplicate',
@@ -248,6 +298,42 @@ export const COMMANDS: Readonly<Record<CommandId, Command>> = {
   'nudge.rightFar': nudge('nudge.rightFar', NUDGE_FAR, 0),
   'nudge.upFar': nudge('nudge.upFar', 0, -NUDGE_FAR),
   'nudge.downFar': nudge('nudge.downFar', 0, NUDGE_FAR),
+  'edit.points': {
+    id: 'edit.points',
+    labelKey: 'command.editPoints',
+    enabled: canEditPoints,
+    checked: (s) => s.linearEdit !== null,
+    run: (s) => (s.linearEdit ? closeLinearEdit(s) : openLinearEdit(s)),
+  },
+  'view.grid': {
+    id: 'view.grid',
+    labelKey: 'command.grid',
+    checked: (s) => s.gridVisible,
+    run: toggleGrid,
+  },
+  'view.gridSnap': {
+    id: 'view.gridSnap',
+    labelKey: 'command.gridSnap',
+    enabled: (s) => s.gridVisible,
+    checked: (s) => s.gridSnap,
+    run: toggleGridSnap,
+  },
+  'view.gridLines': {
+    id: 'view.gridLines',
+    labelKey: 'command.gridLines',
+    enabled: (s) => s.gridVisible,
+    checked: (s) => s.gridStyle === 'lines',
+    run: (s) => setGridStyle(s, s.gridStyle === 'lines' ? 'dots' : 'lines'),
+  },
+  'view.gridSize10': gridSize('view.gridSize10', 10),
+  'view.gridSize20': gridSize('view.gridSize20', 20),
+  'view.gridSize40': gridSize('view.gridSize40', 40),
+  'view.objectSnap': {
+    id: 'view.objectSnap',
+    labelKey: 'command.objectSnap',
+    checked: (s) => s.objectSnap,
+    run: toggleObjectSnap,
+  },
   'debug.toggle': {
     id: 'debug.toggle',
     labelKey: 'command.toggleDebug',
