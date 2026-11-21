@@ -422,11 +422,18 @@ export class SelectTool implements Tool {
     const target = snapped.point;
     const dir = RESIZE_HANDLE_DIRS[p.handle];
     const corner = dir.x !== 0 && dir.y !== 0;
-    const soloText = p.single && [...p.originals.values()].some((el) => el.type === 'text');
+    const solo = (type: SceneElement['type']): boolean =>
+      p.single && [...p.originals.values()].some((el) => el.type === type);
     // Multi-selection always scales proportionally so rotated members stay
     // undistorted; a text corner scales its font, so it keeps its aspect too.
+    // An image corner keeps its aspect unless Shift frees it.
+    const keepAspect = !p.single
+      ? true
+      : solo('image') && corner
+        ? !e.shift
+        : e.shift || (solo('text') && corner);
     const m = computeResize(p.frame, p.handle, target, {
-      keepAspect: p.single ? e.shift || (soloText && corner) : true,
+      keepAspect,
       fromCenter: e.alt,
     });
     const patches = new Map<ElementId, GeometryPatch>();

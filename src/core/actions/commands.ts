@@ -108,6 +108,8 @@ export type CommandId =
   | 'file.save'
   | 'file.saveAs'
   | 'file.drawings'
+  | 'file.export'
+  | 'insert.image'
   | 'debug.toggle';
 
 /** Runs a command against an editor (shared by keymap, menus and palette). */
@@ -345,6 +347,8 @@ export const COMMANDS: Readonly<Record<CommandId, Command>> = {
   'file.save': { id: 'file.save', labelKey: 'command.save' },
   'file.saveAs': { id: 'file.saveAs', labelKey: 'command.saveAs' },
   'file.drawings': { id: 'file.drawings', labelKey: 'command.drawings' },
+  'file.export': { id: 'file.export', labelKey: 'command.export' },
+  'insert.image': { id: 'insert.image', labelKey: 'command.insertImage' },
   'debug.toggle': {
     id: 'debug.toggle',
     labelKey: 'command.toggleDebug',

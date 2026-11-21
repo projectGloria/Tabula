@@ -18,6 +18,7 @@ import type {
   RectangleElement,
   Scene,
   SceneElement,
+  ImageElement,
   TextElement,
 } from './types';
 
@@ -229,6 +230,20 @@ export interface NewTextInit {
 }
 
 /** A text element; its size is fitted to the content by `syncText`. */
+export interface NewImageInit extends NewBoxInit {
+  readonly fileId: string;
+}
+
+export function createImage(init: NewImageInit): ImageElement {
+  return {
+    ...baseFields(init.x, init.y, init.style),
+    type: 'image',
+    width: init.width ?? 0,
+    height: init.height ?? 0,
+    fileId: init.fileId,
+  };
+}
+
 export function createText(init: NewTextInit): TextElement {
   const fontSize = init.fontSize ?? 20;
   return {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addElements } from '../actions/actions';
-import { createRectangle } from '../model/scene';
+import { createImage, createRectangle } from '../model/scene';
 import { Editor } from '../store/editor';
 import { DrawingSession, type TabChannel, type TabMessage } from './session';
 import { MemoryStore } from './store';
@@ -152,7 +152,7 @@ describe('DrawingSession', () => {
       ...rec,
       doc: {
         ...rec.doc,
-        elements: [{ ...createRectangle({ x: 0, y: 0 }), fileId: 'f1' } as never],
+        elements: [createImage({ x: 0, y: 0, width: 1, height: 1, fileId: 'f1' })],
       },
     });
     expect([...(await session.referencedFiles(['f2']))].sort()).toEqual(['f1', 'f2']);

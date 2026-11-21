@@ -73,6 +73,18 @@ export function createTextAt(state: AppState, p: Point, width: number | null = n
   return openTextEditor({ ...state, scene }, text.id);
 }
 
+/** Largest pasted plain text, in characters. */
+export const MAX_PASTE_TEXT = 20_000;
+
+/** Pastes plain text as a new free text element with its top-left at `p`, selected. */
+export function pasteTextAt(state: AppState, p: Point, content: string): AppState {
+  const value = content.replace(/\r\n?/g, '\n').slice(0, MAX_PASTE_TEXT);
+  if (value.trim() === '') return state;
+  const text = createText({ x: p.x, y: p.y, ...textDefaults(state), text: value });
+  const scene = insertElements(state.scene, [text]);
+  return setSelection({ ...state, scene, activeTool: 'select' }, [text.id]);
+}
+
 /** Topmost unlocked box shape whose area contains `p` (filled or not). */
 function boxUnder(state: AppState, p: Point): TextContainer | undefined {
   const { order, entities } = state.scene;

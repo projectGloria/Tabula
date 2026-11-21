@@ -2,7 +2,7 @@ import { boxExpand, boxHeight, boxUnion, boxWidth, type Box } from '../geometry/
 import { elementBounds } from '../geometry/element-bounds';
 import type { ElementId, Scene } from '../model/types';
 import { boundTextOf, isTextContainer } from '../text/bound';
-import { paintElement, paintText } from './draw-element';
+import { paintElement, paintImage, paintText, type ImageSource } from './draw-element';
 import { SketchCache } from './sketch/cache';
 
 export interface PaintOptions {
@@ -10,6 +10,8 @@ export interface PaintOptions {
   readonly labelBackdrop: string;
   /** Text element hidden while it is open in the inline editor. */
   readonly skip?: ElementId | null;
+  /** Decoded images; without it images paint as placeholders. */
+  readonly images?: ImageSource | null;
 }
 
 /**
@@ -29,6 +31,10 @@ export function paintElements(
     if (!el) continue;
     if (el.type === 'text') {
       if (el.containerId === null && el.id !== skip) paintText(ctx, el);
+      continue;
+    }
+    if (el.type === 'image') {
+      paintImage(ctx, el, opts.images ?? null);
       continue;
     }
     paintElement(ctx, el, cache);
@@ -64,6 +70,7 @@ export interface RasterOptions {
   readonly labelBackdrop: string;
   /** Shrinks the scale so neither side exceeds this many pixels. */
   readonly maxSide?: number;
+  readonly images?: ImageSource | null;
 }
 
 /** Largest canvas side browsers reliably support. */
@@ -92,7 +99,10 @@ export function rasterize(
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   ctx.setTransform(scale, 0, 0, scale, -box.minX * scale, -box.minY * scale);
-  paintElements(ctx, scene, ids, new SketchCache(), { labelBackdrop: opts.labelBackdrop });
+  paintElements(ctx, scene, ids, new SketchCache(), {
+    labelBackdrop: opts.labelBackdrop,
+    images: opts.images ?? null,
+  });
   return canvas;
 }
 

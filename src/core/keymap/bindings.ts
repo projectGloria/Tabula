@@ -39,6 +39,7 @@ export const DEFAULT_BINDINGS: readonly KeyBinding[] = [
   { combo: 'Mod+O', command: 'file.open' },
   { combo: 'Mod+S', command: 'file.save' },
   { combo: 'Mod+Shift+S', command: 'file.saveAs' },
+  { combo: 'Mod+Shift+E', command: 'file.export' },
   { combo: 'Mod+Enter', command: 'edit.points' },
   { combo: "Mod+'", command: 'view.grid' },
   { combo: 'Alt+S', command: 'view.objectSnap' },

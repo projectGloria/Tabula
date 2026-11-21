@@ -42,6 +42,7 @@ function sameSketchInputs(a: SceneElement, b: SceneElement): boolean {
     case 'freedraw':
       return b.type === 'freedraw' && a.points === b.points && a.pressures === b.pressures;
     case 'text':
+    case 'image':
       return true;
   }
 }

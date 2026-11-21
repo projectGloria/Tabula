@@ -4,16 +4,16 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 
 ## Milestones
 
-| #   | Milestone                         | Status                           |
-| --- | --------------------------------- | -------------------------------- |
-| 1   | Foundation & Guardrails           | Done                             |
-| 2   | Core Shapes & Transform Geometry  | Done                             |
-| 3   | Hand-Drawn Renderer & Style Panel | Done                             |
-| 4   | Editing Core & History            | Done                             |
-| 5   | Text & Bound Labels               | Done                             |
-| 6   | Arrow Binding & Snapping          | Done                             |
-| 7   | Persistence, Files & Export       | 7a done; 7b (images/export) next |
-| 8   | UX Polish, A11y & Offline PWA     | —                                |
+| #   | Milestone                         | Status |
+| --- | --------------------------------- | ------ |
+| 1   | Foundation & Guardrails           | Done   |
+| 2   | Core Shapes & Transform Geometry  | Done   |
+| 3   | Hand-Drawn Renderer & Style Panel | Done   |
+| 4   | Editing Core & History            | Done   |
+| 5   | Text & Bound Labels               | Done   |
+| 6   | Arrow Binding & Snapping          | Done   |
+| 7   | Persistence, Files & Export       | Done   |
+| 8   | UX Polish, A11y & Offline PWA     | —      |
 
 ## Decisions
 
@@ -33,6 +33,8 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 - M6 (flagged, not yet confirmed): arrow ends dropped within 16 px of a rectangle, diamond, ellipse or free text attach to it (Ctrl/⌘ bypasses), with a 4 px gap plus half of each stroke. The anchor is stored normalized, so ends follow moves and resizes. A two-point arrow never binds both ends to the same shape. Moving an arrow on its own detaches its bound ends; undo restores them. Copies keep bindings only to targets copied with them. Lines and arrows can be curved (Catmull-Rom through the points). Point editor: double-click a line, or Ctrl/⌘+Enter (context menu "Edit points") for a line or arrow, since double-click on an arrow still edits its label. Click a point to select it, Shift adds to the selection, Delete removes points (min 2), drag a translucent midpoint to insert one, Esc closes. Grid: Ctrl/⌘+' toggles it (dots or lines, 10/20/40 spacing in the canvas menu); snap-to-grid is on by default and applies only while the grid is visible. Object snap (Alt+S, off by default) aligns edges and centres to on-screen elements and shows pink guides. Objects win over the grid per axis. Rotated resize handles do not snap.
 
 - M7a (flagged, not yet confirmed): autosave to IndexedDB, debounced 600 ms, plus a flush on hide/close; thumbnails at most every 8 s. Opening or dropping a `.tabula` file imports it as a **new** drawing. Ctrl+S writes back to the opened file handle (Chromium) or downloads. The camera is stored per drawing in IndexedDB, not in the file. Multi-tab: the last tab to open a drawing becomes its writer; the older tab pauses saving and offers "Keep editing here". IndexedDB unavailable or blocked (4 s timeout) falls back to in-memory.
+
+- M7b (flagged, not yet confirmed): images are PNG/JPEG/WebP/GIF only (no SVG), stored once per SHA-256 in the IndexedDB `files` store and hash-verified on import; unreferenced files are GC'd after a 24 h grace. Images take opacity only, are arrow-bindable, and corner-resize keeps aspect unless Shift. Dropped images land at the drop point; pasted plain text becomes a text element. Export (Ctrl/⌘+Shift+E): PNG 1–3× or SVG, selection/all, padding, background, dark variant (HSL lightness inverted), embedded scene (PNG `tbLa` chunk / SVG `<metadata>`, deflated JSON) that keeps the original colours. Dropping or opening such a PNG/SVG opens it as a new drawing. SVG copy goes to the clipboard as text. SVG text references font names only (no embedded fonts).
 
 ## Locked invariants
 
@@ -95,6 +97,9 @@ src/core/geometry   linear-path.ts (curved path sampling)
 src/core/persist    store.ts (DrawingStore, MemoryStore), idb.ts (IdbStore), session.ts (DrawingSession: autosave,
                     drawings list, tab conflict); core/io/document.ts (.tabula schema, parse, migrate)
 src/core/render     paint-scene.ts (shared paint loop, rasterize for thumbnails/export)
+src/core/io         image-files.ts (sha256, validation, sizing), png-chunk.ts, embed.ts (scene in PNG/SVG),
+                    export.ts (scope, dark variant, sceneToSvg); actions/image-actions.ts
+src/app             images.ts (ImageLibrary: bitmaps, files store), exporter.ts; ui/ExportDialog.tsx
 src/i18n            en.ts (string table), t.ts
 src/app             main.tsx (entry), create-app.ts (wires services, app effects), App.tsx, text-setup.ts,
                     persistence.ts (Persistence: session + disk), files.ts (pickers), ui-bus.ts (dialogs, notices)
@@ -117,7 +122,7 @@ Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
 
 ## Known limitations / deferred
 
-- Images, export and the embedded-scene PNG/SVG come in M7b.
+- Image cropping is out of scope. Drawing thumbnails may show image placeholders before bitmaps decode.
 - The multi-selection frame is an axis-aligned union box recomputed every frame, so it changes size during group rotation.
 - Elbow arrows are out of scope. Bound arrows do not route around obstacles.
 - At opacity below 100% a solid fill and its outline overlap and the overlap looks slightly darker (layers are composited separately).
@@ -133,7 +138,6 @@ Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
 
 `npm run dev` · `npm run typecheck` · `npm test` · `npm run lint` · `npm run format` · `npm run build`
 
-## Next: Milestone 7b
+## Next: Milestone 8
 
-1. `image` element (fileId, SHA-256 dedup into the files store, GC from referenced ids).
-2. PNG/SVG export dialog (scale, padding, background, selection) with an embedded scene; re-import.
+Hand tool, eraser, tool lock; dark mode; zen/view modes; zoom fit/selection/reset; command palette; shortcuts modal; responsive layout; palm rejection; ARIA pass; PWA; README.

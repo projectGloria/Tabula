@@ -85,6 +85,7 @@ export function hitTestElement(el: SceneElement, p: Point, tolerance: number): b
     case 'freedraw':
       return hitFreedraw(el, local, tolerance);
     case 'text':
+    case 'image':
       return (
         local.x >= -tolerance &&
         local.y >= -tolerance &&

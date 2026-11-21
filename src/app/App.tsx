@@ -3,6 +3,7 @@ import { Canvas } from '../ui/Canvas';
 import { ContextMenu } from '../ui/ContextMenu';
 import { useSyncExternalStore } from 'react';
 import { DrawingsDialog } from '../ui/DrawingsDialog';
+import { ExportDialog } from '../ui/ExportDialog';
 import { MainMenu } from '../ui/MainMenu';
 import { Notices } from '../ui/Notices';
 import { useApp } from '../ui/app-context';
@@ -30,6 +31,7 @@ function Shell() {
       <MainMenu />
       <Notices />
       {dialog === 'drawings' && <DrawingsDialog />}
+      {dialog === 'export' && <ExportDialog />}
     </main>
   );
 }

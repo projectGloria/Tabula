@@ -21,6 +21,9 @@ const ENTRIES: readonly Entry[] = [
   'file.open',
   'file.save',
   'file.saveAs',
+  'sep',
+  'insert.image',
+  'file.export',
 ];
 
 const STATUS_KEYS: Record<SaveStatus, I18nKey | null> = {

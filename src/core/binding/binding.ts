@@ -12,6 +12,7 @@ import type {
   PointBinding,
   Scene,
   SceneElement,
+  ImageElement,
   TextElement,
 } from '../model/types';
 
@@ -25,13 +26,14 @@ const ANCHOR_INSET = 0.1;
 const DETACH_EPS = 0.5;
 
 /** Elements an arrow endpoint can attach to: closed shapes and free text. */
-export type Bindable = BoxElement | TextElement;
+export type Bindable = BoxElement | TextElement | ImageElement;
 
 export function isBindable(el: SceneElement): el is Bindable {
   switch (el.type) {
     case 'rectangle':
     case 'diamond':
     case 'ellipse':
+    case 'image':
       return true;
     case 'text':
       return el.containerId === null;
@@ -51,6 +53,7 @@ export function polygonOf(el: Bindable): readonly Point[] | null {
       return null;
     case 'rectangle':
     case 'text':
+    case 'image':
       return [
         { x: 0, y: 0 },
         { x: el.width, y: 0 },

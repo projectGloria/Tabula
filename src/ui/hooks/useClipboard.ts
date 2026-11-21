@@ -38,6 +38,11 @@ export function useClipboard(): void {
       const inPlace = pasteInPlace;
       pasteInPlace = false;
       if (typing(e)) return;
+      const files = [...(e.clipboardData?.files ?? [])];
+      if (app.insertImageFiles(files)) {
+        e.preventDefault();
+        return;
+      }
       const text = e.clipboardData?.getData(TEXT) ?? '';
       if (app.pasteText(text, inPlace)) e.preventDefault();
     };

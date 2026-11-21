@@ -20,6 +20,7 @@ import type {
   VerticalAlign,
 } from '../model/types';
 import { clampFontSize, DEFAULT_FONT_SIZE } from '../text/fonts';
+import { isFileId } from './image-files';
 
 /*
  * Defensive parsing of untrusted element data (clipboard, files). Anything
@@ -200,6 +201,10 @@ export function sanitizeElement(raw: unknown): SceneElement | null {
         sizing: oneOf(raw.sizing, SIZINGS, 'auto'),
         containerId: containerId === null ? null : (containerId as ElementId),
       };
+    }
+    case 'image': {
+      if (!isFileId(raw.fileId)) return null;
+      return { ...base, type: 'image', fileId: raw.fileId };
     }
     default:
       return null;

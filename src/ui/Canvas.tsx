@@ -41,7 +41,18 @@ export function Canvas() {
     if (!container || !sceneCanvas || !overlay) return;
     const { editor, tools, toolContext, isMac, ui } = app;
 
-    const renderer = new Renderer(sceneCanvas, overlay, editor.getState, editor.index, debugLabels);
+    const images = app.persistence.images;
+    const renderer = new Renderer(
+      sceneCanvas,
+      overlay,
+      editor.getState,
+      editor.index,
+      debugLabels,
+      images,
+    );
+    const offImages = images.onLoad(() => {
+      renderer.invalidate({ scene: true });
+    });
     let spaceHeld = false;
     let pan: PanGesture | null = null;
     // Pointers whose gesture is open as a history transaction.
@@ -295,6 +306,7 @@ export function Canvas() {
       dprQuery?.removeEventListener('change', onDprChange);
       resizeObserver.disconnect();
       unsubscribe();
+      offImages();
       renderer.dispose();
     };
   }, [app]);

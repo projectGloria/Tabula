@@ -2,6 +2,7 @@ import { setSelection } from '../actions/actions';
 import { EMPTY_SCENE, insertElements } from '../model/scene';
 import type { SceneElement } from '../model/types';
 import { EMPTY_OVERLAY, EMPTY_SELECTION, type AppState, type GridStyle } from '../store/app-state';
+import { isFileId, isImageMime } from './image-files';
 import { sanitizeElements } from './validate';
 
 /** `type` marker of every `.tabula` file. */
@@ -108,16 +109,15 @@ function sanitizeSettings(raw: unknown): DocumentSettings {
   };
 }
 
-const FILE_ID = /^[0-9a-f]{64}$/;
 const DATA_URL = /^data:([a-z]+\/[a-z0-9.+-]+);base64,[A-Za-z0-9+/=]*$/;
 
 function sanitizeFiles(raw: unknown): Record<string, DocumentFile> {
   const out: Record<string, DocumentFile> = {};
   if (!isRecord(raw)) return out;
   for (const [id, f] of Object.entries(raw)) {
-    if (!FILE_ID.test(id) || !isRecord(f) || typeof f.dataURL !== 'string') continue;
+    if (!isFileId(id) || !isRecord(f) || typeof f.dataURL !== 'string') continue;
     const m = DATA_URL.exec(f.dataURL);
-    if (!m?.[1]?.startsWith('image/')) continue;
+    if (!m?.[1] || !isImageMime(m[1])) continue;
     out[id] = { mimeType: m[1], dataURL: f.dataURL };
   }
   return out;

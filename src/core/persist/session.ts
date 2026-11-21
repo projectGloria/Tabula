@@ -1,5 +1,6 @@
 import type { Camera } from '../camera/camera';
 import { EMPTY_SCENE } from '../model/scene';
+import { fileIdsOf } from '../io/image-files';
 import { applyDocument, documentFromState, sameDrawing, type TabulaDocument } from '../io/document';
 import type { AppState } from '../store/app-state';
 import type { Editor } from '../store/editor';
@@ -227,10 +228,7 @@ export class DrawingSession {
     const out = new Set(extra);
     for (const meta of await this.opts.store.listDrawings()) {
       const rec = await this.opts.store.getDrawing(meta.id);
-      for (const el of rec?.doc.elements ?? []) {
-        const fileId = (el as { fileId?: unknown }).fileId;
-        if (typeof fileId === 'string') out.add(fileId);
-      }
+      for (const id of fileIdsOf(rec?.doc.elements ?? [])) out.add(id);
     }
     return out;
   }

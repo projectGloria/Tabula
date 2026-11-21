@@ -9,6 +9,7 @@ import {
   ArrowIcon,
   DiamondIcon,
   EllipseIcon,
+  ImageIcon,
   LineIcon,
   PencilIcon,
   RectangleIcon,
@@ -103,6 +104,7 @@ export function Toolbar() {
           </button>
         );
       })}
+      <HistoryButton command="insert.image" enabled icon={<ImageIcon />} />
       <div className="toolbar-sep" role="separator" />
       <HistoryButton command="history.undo" enabled={canUndo} icon={<UndoIcon />} />
       <HistoryButton command="history.redo" enabled={canRedo} icon={<RedoIcon />} />

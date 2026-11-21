@@ -1,4 +1,4 @@
-import type { SceneElement, TextElement } from '../model/types';
+import type { ImageElement, SceneElement, TextElement } from '../model/types';
 import { fontString } from '../text/fonts';
 import { layoutOf } from '../text/layout';
 import type { SketchCache } from './sketch/cache';
@@ -48,6 +48,41 @@ export function paintElement(
       ctx.stroke(path);
     }
   });
+  ctx.restore();
+}
+
+/** Decoded image bytes by file id; null while loading or when missing. */
+export interface ImageSource {
+  get(fileId: string): CanvasImageSource | null;
+}
+
+const PLACEHOLDER_FILL = 'rgba(128, 128, 128, 0.12)';
+const PLACEHOLDER_LINE = 'rgba(128, 128, 128, 0.6)';
+
+/** Paints an image stretched to its box, or a placeholder until it decodes. */
+export function paintImage(
+  ctx: CanvasRenderingContext2D,
+  el: ImageElement,
+  images: ImageSource | null,
+): void {
+  if (el.style.opacity <= 0 || el.width <= 0 || el.height <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = el.style.opacity / 100;
+  ctx.translate(el.x + el.width / 2, el.y + el.height / 2);
+  if (el.angle !== 0) ctx.rotate(el.angle);
+  ctx.translate(-el.width / 2, -el.height / 2);
+  const bitmap = images?.get(el.fileId) ?? null;
+  if (bitmap) {
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bitmap, 0, 0, el.width, el.height);
+  } else {
+    ctx.fillStyle = PLACEHOLDER_FILL;
+    ctx.fillRect(0, 0, el.width, el.height);
+    ctx.strokeStyle = PLACEHOLDER_LINE;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(0, 0, el.width, el.height);
+  }
   ctx.restore();
 }
 

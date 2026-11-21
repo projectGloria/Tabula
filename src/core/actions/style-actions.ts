@@ -56,14 +56,15 @@ export const STYLE_KEYS: readonly StyleKey[] = [
 /** Whether an element type has a given style property. */
 export function supportsStyle(type: ElementType, key: StyleKey): boolean {
   switch (key) {
-    case 'strokeColor':
     case 'opacity':
       return true;
+    case 'strokeColor':
+      return type !== 'image';
     case 'strokeWidth':
-      return type !== 'text';
+      return type !== 'text' && type !== 'image';
     case 'strokePattern':
     case 'roughness':
-      return type !== 'freedraw' && type !== 'text';
+      return type !== 'freedraw' && type !== 'text' && type !== 'image';
     case 'fontFamily':
     case 'fontSize':
     case 'textAlign':
@@ -87,6 +88,7 @@ export function categoryOfType(type: ElementType): StyleCategory {
     case 'rectangle':
     case 'diamond':
     case 'ellipse':
+    case 'image':
       return 'shape';
     case 'line':
     case 'arrow':

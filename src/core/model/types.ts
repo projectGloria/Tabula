@@ -132,10 +132,19 @@ export interface TextElement extends BaseElement {
   readonly containerId: ElementId | null;
 }
 
+/**
+ * A raster image. The bytes live outside the scene, keyed by `fileId`
+ * (SHA-256 hex of the file), so copies and undo share one blob.
+ */
+export interface ImageElement extends BaseElement {
+  readonly type: 'image';
+  readonly fileId: string;
+}
+
 export type BoxElement = RectangleElement | DiamondElement | EllipseElement;
 export type LinearElement = LineElement | ArrowElement;
 export type PointsElement = LinearElement | FreedrawElement;
-export type SceneElement = BoxElement | PointsElement | TextElement;
+export type SceneElement = BoxElement | PointsElement | TextElement | ImageElement;
 export type ElementType = SceneElement['type'];
 export type BoxElementType = BoxElement['type'];
 export type LinearElementType = LinearElement['type'];

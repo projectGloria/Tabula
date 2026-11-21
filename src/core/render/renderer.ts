@@ -16,6 +16,7 @@ import type { Point } from '../geometry/vec';
 import type { ElementId } from '../model/types';
 import type { GridIndex } from '../spatial/grid-index';
 import type { AppState } from '../store/app-state';
+import type { ImageSource } from './draw-element';
 import { paintElements } from './paint-scene';
 import { SketchCache } from './sketch/cache';
 import { FpsMeter } from './fps-meter';
@@ -71,6 +72,7 @@ export class Renderer {
     private readonly getState: () => AppState,
     private readonly index: GridIndex<ElementId>,
     private readonly debugLabels: DebugLabels,
+    private readonly images: ImageSource | null = null,
   ) {
     this.scene = new CanvasSurface(sceneCanvas);
     this.overlay = new CanvasSurface(overlayCanvas);
@@ -158,6 +160,7 @@ export class Renderer {
     paintElements(ctx, state.scene, visible, this.sketches, {
       labelBackdrop: state.background,
       skip: state.editingText,
+      images: this.images,
     });
     this.sketches.prune(state.scene);
   }

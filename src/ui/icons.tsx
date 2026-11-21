@@ -257,3 +257,13 @@ export function CloseIcon() {
     </Icon>
   );
 }
+
+export function ImageIcon() {
+  return (
+    <Icon>
+      <rect x="4" y="5" width="16" height="14" rx="2" />
+      <circle cx="9" cy="10" r="1.6" />
+      <path d="m5 17 4.5-4.5 3 3 2.5-2.5 4 4" />
+    </Icon>
+  );
+}
