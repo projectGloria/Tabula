@@ -10,11 +10,12 @@ const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('#root element missing');
 
 // Services are created once, outside React, so StrictMode double-mounts are harmless.
-const services = createApp({ dev: import.meta.env.DEV, isMac: detectMac() });
-installTextMeasurement(services.editor);
-
-createRoot(rootEl).render(
-  <StrictMode>
-    <App services={services} />
-  </StrictMode>,
-);
+// The saved drawing is restored before the first render.
+void createApp({ dev: import.meta.env.DEV, isMac: detectMac() }).then((services) => {
+  installTextMeasurement(services.editor);
+  createRoot(rootEl).render(
+    <StrictMode>
+      <App services={services} />
+    </StrictMode>,
+  );
+});

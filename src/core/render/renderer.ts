@@ -16,8 +16,7 @@ import type { Point } from '../geometry/vec';
 import type { ElementId } from '../model/types';
 import type { GridIndex } from '../spatial/grid-index';
 import type { AppState } from '../store/app-state';
-import { boundTextOf, isTextContainer } from '../text/bound';
-import { paintElement, paintText } from './draw-element';
+import { paintElements } from './paint-scene';
 import { SketchCache } from './sketch/cache';
 import { FpsMeter } from './fps-meter';
 import { CanvasSurface } from './surface';
@@ -156,23 +155,10 @@ export class Renderer {
 
     const z = camera.zoom * dpr;
     ctx.setTransform(z, 0, 0, z, -camera.x * z, -camera.y * z);
-    const editing = state.editingText;
-    for (const id of visible) {
-      const el = state.scene.entities[id];
-      if (!el) continue;
-      if (el.type === 'text') {
-        // Labels are painted right after their container.
-        if (el.containerId === null && el.id !== editing) paintText(ctx, el);
-        continue;
-      }
-      paintElement(ctx, el, this.sketches);
-      if (isTextContainer(el)) {
-        const label = boundTextOf(state.scene, el.id);
-        if (label && label.id !== editing) {
-          paintText(ctx, label, el.type === 'arrow' ? state.background : null);
-        }
-      }
-    }
+    paintElements(ctx, state.scene, visible, this.sketches, {
+      labelBackdrop: state.background,
+      skip: state.editingText,
+    });
     this.sketches.prune(state.scene);
   }
 

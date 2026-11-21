@@ -48,7 +48,8 @@ export interface Command {
   readonly checked?: (state: AppState) => boolean;
   /** A pure state transition… */
   readonly run?: (state: AppState) => AppState;
-  /** …or an editor-level effect (undo/redo). */
+  /** …or an editor-level effect (undo/redo). Commands with neither are app effects
+   * (files, dialogs) that the composition root handles. */
   readonly perform?: (editor: Editor) => void;
 }
 
@@ -102,6 +103,11 @@ export type CommandId =
   | 'view.gridSize20'
   | 'view.gridSize40'
   | 'view.objectSnap'
+  | 'file.new'
+  | 'file.open'
+  | 'file.save'
+  | 'file.saveAs'
+  | 'file.drawings'
   | 'debug.toggle';
 
 /** Runs a command against an editor (shared by keymap, menus and palette). */
@@ -334,6 +340,11 @@ export const COMMANDS: Readonly<Record<CommandId, Command>> = {
     checked: (s) => s.objectSnap,
     run: toggleObjectSnap,
   },
+  'file.new': { id: 'file.new', labelKey: 'command.newDrawing' },
+  'file.open': { id: 'file.open', labelKey: 'command.open' },
+  'file.save': { id: 'file.save', labelKey: 'command.save' },
+  'file.saveAs': { id: 'file.saveAs', labelKey: 'command.saveAs' },
+  'file.drawings': { id: 'file.drawings', labelKey: 'command.drawings' },
   'debug.toggle': {
     id: 'debug.toggle',
     labelKey: 'command.toggleDebug',

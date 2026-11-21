@@ -9,6 +9,8 @@ export function useKeyboardShortcuts(): void {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
       if (isEditableTarget(e.target instanceof HTMLElement ? e.target : null)) return;
+      // Dialogs own the keyboard while open.
+      if (app.ui.dialog.get() !== null) return;
       if (e.code === 'Escape') {
         const state = app.editor.getState();
         app.tools[state.activeTool].cancel(app.toolContext);

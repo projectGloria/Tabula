@@ -241,3 +241,19 @@ export function FlipIcon({ axis }: { axis: 'horizontal' | 'vertical' }) {
     </Icon>
   );
 }
+
+export function MenuIcon() {
+  return (
+    <Icon>
+      <path d="M5 7h14M5 12h14M5 17h14" />
+    </Icon>
+  );
+}
+
+export function CloseIcon() {
+  return (
+    <Icon>
+      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+    </Icon>
+  );
+}

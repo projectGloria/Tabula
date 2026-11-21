@@ -4,20 +4,20 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 
 ## Milestones
 
-| #   | Milestone                         | Status                              |
-| --- | --------------------------------- | ----------------------------------- |
-| 1   | Foundation & Guardrails           | Done                                |
-| 2   | Core Shapes & Transform Geometry  | Done                                |
-| 3   | Hand-Drawn Renderer & Style Panel | Done                                |
-| 4   | Editing Core & History            | Done                                |
-| 5   | Text & Bound Labels               | Done                                |
-| 6   | Arrow Binding & Snapping          | **Done**: awaiting browser sign-off |
-| 7   | Persistence, Files & Export       | — (planned split: 7a / 7b)          |
-| 8   | UX Polish, A11y & Offline PWA     | —                                   |
+| #   | Milestone                         | Status                           |
+| --- | --------------------------------- | -------------------------------- |
+| 1   | Foundation & Guardrails           | Done                             |
+| 2   | Core Shapes & Transform Geometry  | Done                             |
+| 3   | Hand-Drawn Renderer & Style Panel | Done                             |
+| 4   | Editing Core & History            | Done                             |
+| 5   | Text & Bound Labels               | Done                             |
+| 6   | Arrow Binding & Snapping          | Done                             |
+| 7   | Persistence, Files & Export       | 7a done; 7b (images/export) next |
+| 8   | UX Polish, A11y & Offline PWA     | —                                |
 
 ## Decisions
 
-- File extension `.tabula`. Schema version: TBD in M7.
+- File extension `.tabula`, MIME `application/vnd.tabula+json`. Schema `{type:'tabula', version:1, elements, settings, files}`; `files` (sha256 → data URL) exists from v1 for images. Migrations: `MIGRATIONS[n]` upgrades n→n+1.
 - LICENSE: proprietary, "Copyright (c) 2026 Project Gloria. All rights reserved." Confirmed by the user on 2026-11-21.
 - Fonts approved (OFL, self-hosted): Patrick Hand, Inter, JetBrains Mono. The font files are **not downloaded yet** (needs permission); `fonts.css` uses `local()` and falls back to system stacks.
 - Unfilled shapes hit only near their outline; filled shapes hit anywhere inside.
@@ -31,6 +31,8 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 - M5 (flagged, not yet confirmed): T selects the text tool; a click makes auto-width text, a drag makes fixed-width (wrapping) text. Double-click (or Enter on a selection) edits text, or labels the shape or arrow under the pointer; double-clicking inside an unfilled box labels it. Esc, blur or Ctrl/⌘+Enter closes the editor, and empty text is deleted. One edit = one undo step. Labels default to centre/middle in the container's stroke color. A box container grows taller to fit its label (it never shrinks back). Arrow labels sit on the midpoint, unrotated, on a background-colored backdrop. Text resize: corners scale the font size, left/right handles set a wrap width, top/bottom do nothing. Text color is the stroke color.
 
 - M6 (flagged, not yet confirmed): arrow ends dropped within 16 px of a rectangle, diamond, ellipse or free text attach to it (Ctrl/⌘ bypasses), with a 4 px gap plus half of each stroke. The anchor is stored normalized, so ends follow moves and resizes. A two-point arrow never binds both ends to the same shape. Moving an arrow on its own detaches its bound ends; undo restores them. Copies keep bindings only to targets copied with them. Lines and arrows can be curved (Catmull-Rom through the points). Point editor: double-click a line, or Ctrl/⌘+Enter (context menu "Edit points") for a line or arrow, since double-click on an arrow still edits its label. Click a point to select it, Shift adds to the selection, Delete removes points (min 2), drag a translucent midpoint to insert one, Esc closes. Grid: Ctrl/⌘+' toggles it (dots or lines, 10/20/40 spacing in the canvas menu); snap-to-grid is on by default and applies only while the grid is visible. Object snap (Alt+S, off by default) aligns edges and centres to on-screen elements and shows pink guides. Objects win over the grid per axis. Rotated resize handles do not snap.
+
+- M7a (flagged, not yet confirmed): autosave to IndexedDB, debounced 600 ms, plus a flush on hide/close; thumbnails at most every 8 s. Opening or dropping a `.tabula` file imports it as a **new** drawing. Ctrl+S writes back to the opened file handle (Chromium) or downloads. The camera is stored per drawing in IndexedDB, not in the file. Multi-tab: the last tab to open a drawing becomes its writer; the older tab pauses saving and offers "Keep editing here". IndexedDB unavailable or blocked (4 s timeout) falls back to in-memory.
 
 ## Locked invariants
 
@@ -90,12 +92,15 @@ src/core/snapping   snapping.ts (snapContext per gesture, snapBox, snapPoint, gu
 src/core/actions    linear-actions.ts (points, bindings, point editor), view-actions.ts (grid/snap)
 src/core/tools      bind-assist.ts (bind candidate under pointer), overlay.ts (overlay patching)
 src/core/geometry   linear-path.ts (curved path sampling)
-src/core/persist    empty; reserved for M7
+src/core/persist    store.ts (DrawingStore, MemoryStore), idb.ts (IdbStore), session.ts (DrawingSession: autosave,
+                    drawings list, tab conflict); core/io/document.ts (.tabula schema, parse, migrate)
+src/core/render     paint-scene.ts (shared paint loop, rasterize for thumbnails/export)
 src/i18n            en.ts (string table), t.ts
-src/app             main.tsx (entry), create-app.ts (wires services), App.tsx, text-setup.ts
+src/app             main.tsx (entry), create-app.ts (wires services, app effects), App.tsx, text-setup.ts,
+                    persistence.ts (Persistence: session + disk), files.ts (pickers), ui-bus.ts (dialogs, notices)
 src/ui              Canvas.tsx (pointer/wheel/resize), Toolbar.tsx, StylePanel.tsx, icons.tsx,
                     style-icons.tsx, ArrangeSection.tsx, ContextMenu.tsx, TextEditor.tsx (textarea overlay),
-                    hooks/ (useClipboard), styles.css, fonts.css
+                    MainMenu, Dialog, DrawingsDialog, Notices, hooks/ (useClipboard, useFileDrop), styles.css
 ```
 
 Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
@@ -112,7 +117,7 @@ Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
 
 ## Known limitations / deferred
 
-- No persistence (M7). Reload loses everything.
+- Images, export and the embedded-scene PNG/SVG come in M7b.
 - The multi-selection frame is an axis-aligned union box recomputed every frame, so it changes size during group rotation.
 - Elbow arrows are out of scope. Bound arrows do not route around obstacles.
 - At opacity below 100% a solid fill and its outline overlap and the overlap looks slightly darker (layers are composited separately).
@@ -128,8 +133,7 @@ Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
 
 `npm run dev` · `npm run typecheck` · `npm test` · `npm run lint` · `npm run format` · `npm run build`
 
-## Next: Milestone 7 starting point
+## Next: Milestone 7b
 
-1. IndexedDB autosave, drawings list with thumbnails, `.tabula` schema + migrations.
-2. File System Access open/save with download fallback; BroadcastChannel across tabs.
-3. Images (with GC), PNG/SVG export with embedded scene and re-import.
+1. `image` element (fileId, SHA-256 dedup into the files store, GC from referenced ids).
+2. PNG/SVG export dialog (scale, padding, background, selection) with an embedded scene; re-import.

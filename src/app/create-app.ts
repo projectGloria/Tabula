@@ -12,27 +12,8 @@ import { DEFAULT_BINDINGS } from '../core/keymap/bindings';
 import { Keymap } from '../core/keymap/keymap';
 import { Editor } from '../core/store/editor';
 import { createTools, type ToolContext, type ToolRegistry } from '../core/tools';
-
-type Listener<T> = (value: T) => void;
-
-/** Tiny UI-only channel between the canvas and floating UI (menus). */
-export class UiBus {
-  /** Last pointer position over the canvas in world units; null when it left. */
-  pointerWorld: Point | null = null;
-  private menuListeners = new Set<Listener<Point>>();
-
-  /** Asks the context menu to open at a viewport-relative screen point. */
-  openContextMenu(screen: Point): void {
-    for (const l of this.menuListeners) l(screen);
-  }
-
-  onContextMenu(listener: Listener<Point>): () => void {
-    this.menuListeners.add(listener);
-    return () => {
-      this.menuListeners.delete(listener);
-    };
-  }
-}
+import { Persistence } from './persistence';
+import { UiBus } from './ui-bus';
 
 /** Everything the UI needs, wired once at startup. */
 export interface AppServices {
@@ -42,6 +23,7 @@ export interface AppServices {
   readonly keymap: Keymap;
   readonly isMac: boolean;
   readonly ui: UiBus;
+  readonly persistence: Persistence;
   runCommand(id: CommandId): void;
   /** Serialized selection for the clipboard; null when nothing is selected. */
   copySelection(): string | null;
@@ -55,7 +37,10 @@ export function detectMac(): boolean {
   return /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
 }
 
-export function createApp(options: { dev: boolean; isMac: boolean }): AppServices {
+/** App effects: commands that touch files or dialogs rather than state. */
+type Effects = Partial<Record<CommandId, () => void>>;
+
+export async function createApp(options: { dev: boolean; isMac: boolean }): Promise<AppServices> {
   const editor = new Editor();
   const tools = createTools();
   const ui = new UiBus();
@@ -93,6 +78,17 @@ export function createApp(options: { dev: boolean; isMac: boolean }): AppService
     return screenToWorld(s.camera, { x: s.viewport.width / 2, y: s.viewport.height / 2 });
   };
 
+  const persistence = await Persistence.create(editor, ui);
+  const effects: Effects = {
+    'file.new': () => void persistence.newDrawing(),
+    'file.open': () => void persistence.open(),
+    'file.save': () => void persistence.save(),
+    'file.saveAs': () => void persistence.save(true),
+    'file.drawings': () => {
+      ui.dialog.set('drawings');
+    },
+  };
+
   return {
     editor,
     tools,
@@ -100,9 +96,15 @@ export function createApp(options: { dev: boolean; isMac: boolean }): AppService
     keymap,
     isMac: options.isMac,
     ui,
+    persistence,
     runCommand(id) {
       const cmd = COMMANDS[id];
       if (cmd.devOnly === true && !options.dev) return;
+      const effect = effects[id];
+      if (effect) {
+        if (!cmd.enabled || cmd.enabled(editor.getState())) effect();
+        return;
+      }
       executeCommand(editor, cmd);
     },
     copySelection,
