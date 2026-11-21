@@ -2,7 +2,7 @@ import { DEFAULT_CAMERA, type Camera, type Viewport } from '../camera/camera';
 import { EMPTY_SCENE } from '../model/scene';
 import type { ElementId, Scene } from '../model/types';
 
-export type ToolId = 'select' | 'rectangle';
+export type ToolId = 'select' | 'rectangle' | 'diamond' | 'ellipse' | 'line' | 'arrow' | 'freedraw';
 
 export type Selection = Readonly<Partial<Record<ElementId, true>>>;
 

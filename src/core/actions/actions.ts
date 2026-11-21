@@ -6,6 +6,8 @@ import {
   removeElements,
   replaceElements,
   type ElementPatch,
+  applyGeometry,
+  type GeometryPatch,
 } from '../model/scene';
 import type { ElementId, SceneElement } from '../model/types';
 import { EMPTY_SELECTION, type AppState, type Selection, type ToolId } from '../store/app-state';
@@ -64,6 +66,44 @@ export function updateElement(state: AppState, id: ElementId, patch: ElementPatc
   const el = state.scene.entities[id];
   if (!el) return state;
   return { ...state, scene: replaceElements(state.scene, [mutateElement(el, patch)]) };
+}
+
+/** Replaces one element with `fn(element)`. No-op when it returns the same object. */
+export function updateElementWith(
+  state: AppState,
+  id: ElementId,
+  fn: (el: SceneElement) => SceneElement,
+): AppState {
+  const el = state.scene.entities[id];
+  if (!el) return state;
+  const next = fn(el);
+  return next === el ? state : { ...state, scene: replaceElements(state.scene, [next]) };
+}
+
+/** Applies geometry patches by id (resize, rotate, point edits). */
+export function setElementGeometry(
+  state: AppState,
+  patches: ReadonlyMap<ElementId, GeometryPatch>,
+): AppState {
+  const updated: SceneElement[] = [];
+  for (const [id, g] of patches) {
+    const el = state.scene.entities[id];
+    if (el) updated.push(applyGeometry(el, g));
+  }
+  if (updated.length === 0) return state;
+  return { ...state, scene: replaceElements(state.scene, updated) };
+}
+
+/** Puts back whole element snapshots (used to cancel a gesture). Unknown ids are ignored. */
+export function restoreElements(state: AppState, elements: Iterable<SceneElement>): AppState {
+  const restored: SceneElement[] = [];
+  for (const orig of elements) {
+    const current = state.scene.entities[orig.id];
+    // Bump past the current revision so revision-keyed caches never go stale.
+    if (current && current !== orig) restored.push({ ...orig, revision: current.revision + 1 });
+  }
+  const scene = replaceElements(state.scene, restored);
+  return scene === state.scene ? state : { ...state, scene };
 }
 
 /** Sets absolute positions; `positions` maps id → new top-left. */

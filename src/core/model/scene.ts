@@ -1,6 +1,22 @@
 import { createElementId, createSeed } from './ids';
 import { DEFAULT_STYLE } from './style';
-import type { ElementId, ElementStyle, RectangleElement, Scene, SceneElement } from './types';
+import type {
+  ArrowElement,
+  BoxElement,
+  BoxElementType,
+  ElementId,
+  ElementStyle,
+  GroupId,
+  FreedrawElement,
+  LinearElement,
+  LinearElementType,
+  LineElement,
+  LocalPoint,
+  PointsElement,
+  RectangleElement,
+  Scene,
+  SceneElement,
+} from './types';
 
 export const EMPTY_SCENE: Scene = { entities: {}, order: [] };
 
@@ -26,6 +42,30 @@ export function orderedElements(scene: Scene): SceneElement[] {
 /** Returns a new element with the patch applied and `revision` bumped. */
 export function mutateElement<T extends SceneElement>(el: T, patch: ElementPatch<T>): T {
   return { ...el, ...patch, revision: el.revision + 1 };
+}
+
+export function isPointsElement(el: SceneElement): el is PointsElement {
+  return el.type === 'line' || el.type === 'arrow' || el.type === 'freedraw';
+}
+
+/** Geometry fields shared by transforms; `points` applies to points elements only. */
+export interface GeometryPatch {
+  readonly x?: number;
+  readonly y?: number;
+  readonly width?: number;
+  readonly height?: number;
+  readonly angle?: number;
+  readonly points?: readonly LocalPoint[];
+}
+
+/** Applies a geometry patch, ignoring `points` on box-shaped elements. */
+export function applyGeometry<T extends SceneElement>(el: T, g: GeometryPatch): T {
+  if (g.points && !isPointsElement(el)) {
+    const rest: GeometryPatch = { ...g };
+    delete (rest as { points?: unknown }).points;
+    return mutateElement(el, rest as ElementPatch<T>);
+  }
+  return mutateElement(el, g as ElementPatch<T>);
 }
 
 /** Inserts elements on top of the stack (or at `index`). Throws on duplicate ids. */
@@ -72,7 +112,7 @@ export function removeElements(scene: Scene, ids: Iterable<ElementId>): Scene {
   return { entities, order: scene.order.filter((id) => !drop.has(id)) };
 }
 
-export interface NewRectangleInit {
+export interface NewBoxInit {
   readonly x: number;
   readonly y: number;
   readonly width?: number;
@@ -80,19 +120,82 @@ export interface NewRectangleInit {
   readonly style?: ElementStyle;
 }
 
-export function createRectangle(init: NewRectangleInit): RectangleElement {
+/** @deprecated alias kept for M1 call sites. */
+export type NewRectangleInit = NewBoxInit;
+
+function baseFields(x: number, y: number, style: ElementStyle | undefined) {
   return {
     id: createElementId(),
-    type: 'rectangle',
-    x: init.x,
-    y: init.y,
-    width: init.width ?? 0,
-    height: init.height ?? 0,
+    x,
+    y,
     angle: 0,
-    style: init.style ?? DEFAULT_STYLE,
+    style: style ?? DEFAULT_STYLE,
     seed: createSeed(),
-    groupIds: [],
+    groupIds: [] as readonly GroupId[],
     locked: false,
     revision: 0,
+  };
+}
+
+export function createBoxElement<T extends BoxElementType>(
+  type: T,
+  init: NewBoxInit,
+): Extract<BoxElement, { type: T }> {
+  return {
+    ...baseFields(init.x, init.y, init.style),
+    type,
+    width: init.width ?? 0,
+    height: init.height ?? 0,
+  } as Extract<BoxElement, { type: T }>;
+}
+
+export function createRectangle(init: NewBoxInit): RectangleElement {
+  return createBoxElement('rectangle', init);
+}
+
+export interface NewPointsInit {
+  /** World position of the first point. */
+  readonly x: number;
+  readonly y: number;
+  readonly style?: ElementStyle;
+}
+
+/** A line with a single point at `(x, y)`; points are appended via `withWorldPoints`. */
+export function createLine(init: NewPointsInit): LineElement {
+  return {
+    ...baseFields(init.x, init.y, init.style),
+    type: 'line',
+    width: 0,
+    height: 0,
+    points: [{ x: 0, y: 0 }],
+  };
+}
+
+export function createArrow(init: NewPointsInit): ArrowElement {
+  return {
+    ...baseFields(init.x, init.y, init.style),
+    type: 'arrow',
+    width: 0,
+    height: 0,
+    points: [{ x: 0, y: 0 }],
+    startHead: 'none',
+    endHead: 'arrow',
+  };
+}
+
+export function createLinearElement(type: LinearElementType, init: NewPointsInit): LinearElement {
+  return type === 'line' ? createLine(init) : createArrow(init);
+}
+
+export function createFreedraw(
+  init: NewPointsInit & { readonly pressure?: number },
+): FreedrawElement {
+  return {
+    ...baseFields(init.x, init.y, init.style),
+    type: 'freedraw',
+    width: 0,
+    height: 0,
+    points: [{ x: 0, y: 0 }],
+    pressures: [init.pressure ?? 0.5],
   };
 }

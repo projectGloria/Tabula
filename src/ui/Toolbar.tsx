@@ -5,7 +5,15 @@ import type { I18nKey } from '../i18n/en';
 import { t } from '../i18n/t';
 import { useApp } from './app-context';
 import { useEditorState } from './hooks/useEditorState';
-import { RectangleIcon, SelectIcon } from './icons';
+import {
+  ArrowIcon,
+  DiamondIcon,
+  EllipseIcon,
+  LineIcon,
+  PencilIcon,
+  RectangleIcon,
+  SelectIcon,
+} from './icons';
 
 interface ToolButtonDef {
   readonly tool: ToolId;
@@ -22,6 +30,11 @@ const TOOL_BUTTONS: readonly ToolButtonDef[] = [
     labelKey: 'tool.rectangle',
     icon: <RectangleIcon />,
   },
+  { tool: 'diamond', command: 'tool.diamond', labelKey: 'tool.diamond', icon: <DiamondIcon /> },
+  { tool: 'ellipse', command: 'tool.ellipse', labelKey: 'tool.ellipse', icon: <EllipseIcon /> },
+  { tool: 'arrow', command: 'tool.arrow', labelKey: 'tool.arrow', icon: <ArrowIcon /> },
+  { tool: 'line', command: 'tool.line', labelKey: 'tool.line', icon: <LineIcon /> },
+  { tool: 'freedraw', command: 'tool.freedraw', labelKey: 'tool.freedraw', icon: <PencilIcon /> },
 ];
 
 export function Toolbar() {

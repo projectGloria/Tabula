@@ -6,8 +6,8 @@ import {
   updateElement,
 } from '../actions/actions';
 import type { Point } from '../geometry/vec';
-import { createRectangle } from '../model/scene';
-import type { ElementId } from '../model/types';
+import { createBoxElement } from '../model/scene';
+import type { BoxElementType, ElementId } from '../model/types';
 import { rectFromDrag } from './drag-rect';
 import type { PointerInput, Tool, ToolContext } from './tool';
 
@@ -20,14 +20,16 @@ interface Drawing {
   readonly origin: Point;
 }
 
-export class RectangleTool implements Tool {
-  readonly id = 'rectangle' as const;
+/** Drag-to-draw tool for rectangle, diamond and ellipse. Shift: equal sides; Alt: from center. */
+export class BoxShapeTool<T extends BoxElementType> implements Tool {
   readonly cursor = 'crosshair';
   private drawing: Drawing | null = null;
 
+  constructor(readonly id: T) {}
+
   onPointerDown(ctx: ToolContext, e: PointerInput): void {
     if (e.button !== 0 || this.drawing) return;
-    const el = createRectangle({ x: e.world.x, y: e.world.y });
+    const el = createBoxElement(this.id, { x: e.world.x, y: e.world.y });
     this.drawing = { pointerId: e.pointerId, id: el.id, origin: e.world };
     ctx.update((s) => addElements(s, [el]));
   }

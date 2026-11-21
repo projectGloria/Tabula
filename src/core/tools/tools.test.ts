@@ -7,7 +7,7 @@ import { DEFAULT_STYLE } from '../model/style';
 import { selectedIds } from '../store/app-state';
 import { Editor } from '../store/editor';
 import { rectFromDrag } from './drag-rect';
-import { RectangleTool } from './rectangle-tool';
+import { BoxShapeTool } from './box-shape-tool';
 import { SelectTool } from './select-tool';
 import type { PointerInput, ToolContext } from './tool';
 
@@ -61,7 +61,7 @@ describe('rectFromDrag', () => {
   });
 });
 
-describe('RectangleTool', () => {
+describe('BoxShapeTool (rectangle)', () => {
   let h: ReturnType<typeof harness>;
   beforeEach(() => {
     h = harness();
@@ -69,7 +69,7 @@ describe('RectangleTool', () => {
   });
 
   it('creates a normalized rectangle, selects it and returns to Select', () => {
-    const tool = new RectangleTool();
+    const tool = new BoxShapeTool('rectangle');
     tool.onPointerDown(h.ctx, h.input({ x: 200, y: 200 }));
     tool.onPointerMove(h.ctx, h.input({ x: 150, y: 260 }));
     tool.onPointerUp(h.ctx, h.input({ x: 100, y: 300 }));
@@ -82,14 +82,14 @@ describe('RectangleTool', () => {
   });
 
   it('discards a click without drag', () => {
-    const tool = new RectangleTool();
+    const tool = new BoxShapeTool('rectangle');
     tool.onPointerDown(h.ctx, h.input({ x: 10, y: 10 }));
     tool.onPointerUp(h.ctx, h.input({ x: 10.5, y: 10.5 }));
     expect(h.editor.getState().scene.order).toHaveLength(0);
   });
 
   it('removes the in-progress shape on cancel', () => {
-    const tool = new RectangleTool();
+    const tool = new BoxShapeTool('rectangle');
     tool.onPointerDown(h.ctx, h.input({ x: 10, y: 10 }));
     tool.onPointerMove(h.ctx, h.input({ x: 90, y: 90 }));
     tool.cancel(h.ctx);
@@ -97,7 +97,7 @@ describe('RectangleTool', () => {
   });
 
   it('ignores other pointers during a gesture', () => {
-    const tool = new RectangleTool();
+    const tool = new BoxShapeTool('rectangle');
     tool.onPointerDown(h.ctx, h.input({ x: 0, y: 0 }));
     tool.onPointerMove(h.ctx, h.input({ x: 500, y: 500 }, { pointerId: 2 }));
     tool.onPointerUp(h.ctx, h.input({ x: 50, y: 40 }));

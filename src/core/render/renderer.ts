@@ -1,6 +1,15 @@
 import { visibleWorldBox, worldToScreen } from '../camera/camera';
 import type { Box } from '../geometry/box';
-import { rectCorners } from '../geometry/rect';
+import { rectCorners, type RectLike } from '../geometry/rect';
+import {
+  getSelectionFrame,
+  getSelectionHandles,
+  HANDLE_HIT_SLOP_PX,
+  HANDLE_SIZE_PX,
+  SELECTION_PAD_PX,
+  usesEndpointHandles,
+  type SelectionHandle,
+} from '../hit/handles';
 import type { Point } from '../geometry/vec';
 import type { ElementId } from '../model/types';
 import type { GridIndex } from '../spatial/grid-index';
@@ -10,7 +19,9 @@ import { FpsMeter } from './fps-meter';
 import { CanvasSurface } from './surface';
 
 const SELECTION_COLOR = '#2f6fde';
-const SELECTION_PAD_PX = 4;
+const SELECTION_MEMBER_COLOR = 'rgba(47, 111, 222, 0.45)';
+const HANDLE_FILL = '#ffffff';
+const DEBUG_HANDLE_COLOR = 'rgba(230, 140, 20, 0.9)';
 const DEBUG_AABB_COLOR = 'rgba(214, 51, 108, 0.8)';
 const DEBUG_BOUNDS_COLOR = 'rgba(16, 152, 120, 0.9)';
 
@@ -132,29 +143,74 @@ export class Renderer {
     this.overlay.clear();
     const { camera } = state;
 
-    // Selection outlines, drawn in screen space for crisp 1px lines.
-    ctx.strokeStyle = SELECTION_COLOR;
+    // Selection chrome, drawn in screen space for crisp 1px lines.
+    const frame = getSelectionFrame(state);
+    const handles = getSelectionHandles(state, frame);
     ctx.lineWidth = 1;
-    for (const id of Object.keys(state.selection) as ElementId[]) {
+    const ids = Object.keys(state.selection) as ElementId[];
+    const multi = ids.length > 1;
+    for (const id of ids) {
       const el = state.scene.entities[id];
       if (!el) continue;
-      const pad = SELECTION_PAD_PX / camera.zoom;
-      const corners = rectCorners({
-        x: el.x - pad,
-        y: el.y - pad,
-        width: el.width + pad * 2,
-        height: el.height + pad * 2,
-        angle: el.angle,
-      }).map((p) => worldToScreen(camera, p));
-      strokePolygon(ctx, corners);
+      if (!multi && usesEndpointHandles(el)) continue;
+      ctx.strokeStyle = multi ? SELECTION_MEMBER_COLOR : SELECTION_COLOR;
+      strokePolygon(
+        ctx,
+        paddedCorners(el, camera.zoom).map((p) => worldToScreen(camera, p)),
+      );
     }
+    if (frame && multi) {
+      ctx.strokeStyle = SELECTION_COLOR;
+      strokePolygon(
+        ctx,
+        paddedCorners(frame.rect, camera.zoom).map((p) => worldToScreen(camera, p)),
+      );
+    }
+    this.drawHandles(state, handles);
 
     if (state.debug) this.drawDebug(state);
+  }
+
+  private drawHandles(state: AppState, handles: readonly SelectionHandle[]): void {
+    const { ctx } = this.overlay;
+    const { camera } = state;
+    const half = HANDLE_SIZE_PX / 2;
+    const frame = getSelectionFrame(state);
+    const angle = frame?.rect.angle ?? 0;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = SELECTION_COLOR;
+    ctx.fillStyle = HANDLE_FILL;
+    for (const h of handles) {
+      const c = worldToScreen(camera, h.center);
+      ctx.beginPath();
+      if (h.kind.type === 'resize') {
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.rotate(angle);
+        ctx.rect(-half, -half, HANDLE_SIZE_PX, HANDLE_SIZE_PX);
+        ctx.restore();
+      } else {
+        ctx.arc(c.x, c.y, half, 0, Math.PI * 2);
+      }
+      ctx.fill();
+      ctx.stroke();
+    }
   }
 
   private drawDebug(state: AppState): void {
     const { ctx } = this.overlay;
     const { camera } = state;
+
+    // Handle pick areas.
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = DEBUG_HANDLE_COLOR;
+    const reach = HANDLE_SIZE_PX / 2 + HANDLE_HIT_SLOP_PX;
+    for (const h of getSelectionHandles(state)) {
+      const c = worldToScreen(camera, h.center);
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, reach, 0, Math.PI * 2);
+      ctx.stroke();
+    }
 
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 3]);
@@ -187,6 +243,18 @@ export class Renderer {
       ctx.fillText(line, x, y + i * 16);
     });
   }
+}
+
+/** Element/frame corners expanded by the selection pad (screen px) in its own frame. */
+function paddedCorners(r: RectLike, zoom: number): Point[] {
+  const pad = SELECTION_PAD_PX / zoom;
+  return rectCorners({
+    x: r.x - pad,
+    y: r.y - pad,
+    width: r.width + pad * 2,
+    height: r.height + pad * 2,
+    angle: r.angle,
+  });
 }
 
 function strokePolygon(ctx: CanvasRenderingContext2D, pts: readonly Point[]): void {

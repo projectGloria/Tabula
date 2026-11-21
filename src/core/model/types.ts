@@ -51,8 +51,53 @@ export interface RectangleElement extends BaseElement {
   readonly type: 'rectangle';
 }
 
-export type SceneElement = RectangleElement;
+export interface DiamondElement extends BaseElement {
+  readonly type: 'diamond';
+}
+
+export interface EllipseElement extends BaseElement {
+  readonly type: 'ellipse';
+}
+
+/** A point relative to an element's `x`/`y`, in its unrotated frame. */
+export interface LocalPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+/**
+ * Point-based elements. `points` are local: the bounding box of the points
+ * starts at (0, 0) and spans `width` × `height`.
+ */
+interface PointsElementBase extends BaseElement {
+  readonly points: readonly LocalPoint[];
+}
+
+export interface LineElement extends PointsElementBase {
+  readonly type: 'line';
+}
+
+export type Arrowhead = 'none' | 'arrow' | 'triangle' | 'bar' | 'dot' | 'diamond';
+
+export interface ArrowElement extends PointsElementBase {
+  readonly type: 'arrow';
+  readonly startHead: Arrowhead;
+  readonly endHead: Arrowhead;
+}
+
+export interface FreedrawElement extends PointsElementBase {
+  readonly type: 'freedraw';
+  /** Per-point pressure in 0–1, parallel to `points` (simulated for mouse/touch). */
+  readonly pressures: readonly number[];
+}
+
+export type BoxElement = RectangleElement | DiamondElement | EllipseElement;
+export type LinearElement = LineElement | ArrowElement;
+export type PointsElement = LinearElement | FreedrawElement;
+export type SceneElement = BoxElement | PointsElement;
 export type ElementType = SceneElement['type'];
+export type BoxElementType = BoxElement['type'];
+export type LinearElementType = LinearElement['type'];
 
 export interface Scene {
   readonly entities: Readonly<Record<ElementId, SceneElement>>;

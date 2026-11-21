@@ -12,6 +12,14 @@ export function useKeyboardShortcuts(): void {
         const state = app.editor.getState();
         app.tools[state.activeTool].cancel(app.toolContext);
       }
+      if (e.code === 'Enter' && !e.repeat) {
+        const tool = app.tools[app.editor.getState().activeTool];
+        if (tool.finish) {
+          e.preventDefault();
+          tool.finish(app.toolContext);
+          return;
+        }
+      }
       const command = app.keymap.match(e);
       if (command === undefined) return;
       e.preventDefault();

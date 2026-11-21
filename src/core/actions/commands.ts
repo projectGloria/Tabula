@@ -1,5 +1,5 @@
 import type { I18nKey } from '../../i18n/en';
-import type { AppState } from '../store/app-state';
+import type { AppState, ToolId } from '../store/app-state';
 import { clearSelection, setTool, toggleDebug } from './actions';
 
 /**
@@ -14,7 +14,21 @@ export interface Command {
   run(state: AppState): AppState;
 }
 
-export type CommandId = 'tool.select' | 'tool.rectangle' | 'selection.clear' | 'debug.toggle';
+export type CommandId =
+  | 'tool.select'
+  | 'tool.rectangle'
+  | 'tool.diamond'
+  | 'tool.ellipse'
+  | 'tool.line'
+  | 'tool.arrow'
+  | 'tool.freedraw'
+  | 'selection.clear'
+  | 'debug.toggle';
+
+/** Drawing tools clear the selection when activated. */
+function drawTool(tool: ToolId) {
+  return (s: AppState): AppState => setTool(clearSelection(s), tool);
+}
 
 export const COMMANDS: Readonly<Record<CommandId, Command>> = {
   'tool.select': {
@@ -25,7 +39,32 @@ export const COMMANDS: Readonly<Record<CommandId, Command>> = {
   'tool.rectangle': {
     id: 'tool.rectangle',
     labelKey: 'command.toolRectangle',
-    run: (s) => setTool(clearSelection(s), 'rectangle'),
+    run: drawTool('rectangle'),
+  },
+  'tool.diamond': {
+    id: 'tool.diamond',
+    labelKey: 'command.toolDiamond',
+    run: drawTool('diamond'),
+  },
+  'tool.ellipse': {
+    id: 'tool.ellipse',
+    labelKey: 'command.toolEllipse',
+    run: drawTool('ellipse'),
+  },
+  'tool.line': {
+    id: 'tool.line',
+    labelKey: 'command.toolLine',
+    run: drawTool('line'),
+  },
+  'tool.arrow': {
+    id: 'tool.arrow',
+    labelKey: 'command.toolArrow',
+    run: drawTool('arrow'),
+  },
+  'tool.freedraw': {
+    id: 'tool.freedraw',
+    labelKey: 'command.toolFreedraw',
+    run: drawTool('freedraw'),
   },
   'selection.clear': {
     id: 'selection.clear',

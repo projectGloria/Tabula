@@ -1,26 +1,64 @@
+import { distanceToEllipseOutline, pointInEllipse } from '../geometry/ellipse';
+import {
+  diamondVertices,
+  freedrawBaseWidth,
+  freedrawOutline,
+  strokePx,
+} from '../geometry/element-shape';
+import { freedrawWidth } from '../geometry/stroke-outline';
 import { toRectLocal } from '../geometry/rect';
+import {
+  distanceToPolygonEdges,
+  distanceToPolyline,
+  distanceToSegment,
+  pointInPolygon,
+} from '../geometry/segment';
 import type { Point } from '../geometry/vec';
-import { STROKE_WIDTH_PX } from '../model/style';
-import type { ElementId, Scene, SceneElement } from '../model/types';
+import type { ElementId, FreedrawElement, Scene, SceneElement } from '../model/types';
 import type { SpatialIndex } from '../spatial/spatial-index';
+
+function hitFreedraw(el: FreedrawElement, local: Point, tolerance: number): boolean {
+  if (pointInPolygon(local, freedrawOutline(el))) return true;
+  const base = freedrawBaseWidth(strokePx(el));
+  const pts = el.points;
+  const first = pts[0];
+  if (!first) return false;
+  if (pts.length === 1) {
+    return (
+      Math.hypot(local.x - first.x, local.y - first.y) <=
+      tolerance + freedrawWidth(base, el.pressures[0] ?? 0.5) / 2
+    );
+  }
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    if (!a || !b) continue;
+    const w = Math.max(
+      freedrawWidth(base, el.pressures[i - 1] ?? 0.5),
+      freedrawWidth(base, el.pressures[i] ?? 0.5),
+    );
+    if (distanceToSegment(local, a, b) <= tolerance + w / 2) return true;
+  }
+  return false;
+}
 
 /**
  * Precise hit test against a single element.
  * Filled shapes hit anywhere inside; unfilled shapes hit only near their outline.
  */
 export function hitTestElement(el: SceneElement, p: Point, tolerance: number): boolean {
+  const local = toRectLocal(el, p);
+  const reach = tolerance + strokePx(el) / 2;
+  const filled = el.style.fillStyle !== 'none';
   switch (el.type) {
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- single-variant union until M2 adds shapes
     case 'rectangle': {
-      const local = toRectLocal(el, p);
-      const reach = tolerance + STROKE_WIDTH_PX[el.style.strokeWidth] / 2;
       const insideOuter =
         local.x >= -reach &&
         local.y >= -reach &&
         local.x <= el.width + reach &&
         local.y <= el.height + reach;
       if (!insideOuter) return false;
-      if (el.style.fillStyle !== 'none') return true;
+      if (filled) return true;
       const insideInner =
         local.x > reach &&
         local.y > reach &&
@@ -28,6 +66,23 @@ export function hitTestElement(el: SceneElement, p: Point, tolerance: number): b
         local.y < el.height - reach;
       return !insideInner;
     }
+    case 'diamond': {
+      const poly = diamondVertices(el.width, el.height);
+      if (filled && pointInPolygon(local, poly)) return true;
+      return distanceToPolygonEdges(local, poly) <= reach;
+    }
+    case 'ellipse': {
+      const a = el.width / 2;
+      const b = el.height / 2;
+      const c = { x: local.x - a, y: local.y - b };
+      if (filled && pointInEllipse(c, a, b)) return true;
+      return distanceToEllipseOutline(c, a, b) <= reach;
+    }
+    case 'line':
+    case 'arrow':
+      return distanceToPolyline(local, el.points) <= reach;
+    case 'freedraw':
+      return hitFreedraw(el, local, tolerance);
   }
 }
 

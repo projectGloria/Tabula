@@ -109,6 +109,7 @@ export function Canvas() {
         return;
       }
       activeTool().onPointerDown(toolContext, toInput(e));
+      updateCursor();
     };
     const onPointerMove = (e: PointerEvent): void => {
       if (pan) {
@@ -120,7 +121,12 @@ export function Canvas() {
         editor.update((s) => panCamera(s, dx, dy));
         return;
       }
-      activeTool().onPointerMove(toolContext, toInput(e));
+      const tool = activeTool();
+      const samples =
+        tool.wantsCoalesced === true && 'getCoalescedEvents' in e ? e.getCoalescedEvents() : [];
+      if (samples.length > 0) for (const s of samples) tool.onPointerMove(toolContext, toInput(s));
+      else tool.onPointerMove(toolContext, toInput(e));
+      updateCursor();
     };
     const onPointerUp = (e: PointerEvent): void => {
       if (overlay.hasPointerCapture(e.pointerId)) overlay.releasePointerCapture(e.pointerId);
@@ -132,6 +138,7 @@ export function Canvas() {
         return;
       }
       activeTool().onPointerUp(toolContext, toInput(e));
+      updateCursor();
     };
     const onPointerCancel = (e: PointerEvent): void => {
       if (pan?.pointerId === e.pointerId) {

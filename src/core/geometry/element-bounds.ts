@@ -1,13 +1,25 @@
-import { boxExpand, type Box } from './box';
+import { boxExpand, boxFromPoints, type Box } from './box';
+import { worldPointsOf } from './element-geometry';
+import { arrowheadSize, freedrawMaxWidth, hasArrowheads, strokePx } from './element-shape';
 import { rectAABB } from './rect';
-import { STROKE_WIDTH_PX } from '../model/style';
 import type { SceneElement } from '../model/types';
 
-/** Visual AABB of an element in world units, including half the stroke width. */
+/** Visual AABB of an element in world units, including stroke and decorations. */
 export function elementBounds(el: SceneElement): Box {
+  const stroke = strokePx(el);
   switch (el.type) {
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- single-variant union until M2 adds shapes
     case 'rectangle':
-      return boxExpand(rectAABB(el), STROKE_WIDTH_PX[el.style.strokeWidth] / 2);
+    case 'diamond':
+    case 'ellipse':
+      return boxExpand(rectAABB(el), stroke / 2);
+    case 'line':
+    case 'arrow':
+    case 'freedraw': {
+      const box = boxFromPoints(worldPointsOf(el)) ?? rectAABB(el);
+      let pad = stroke / 2;
+      if (el.type === 'arrow' && hasArrowheads(el)) pad = Math.max(pad, arrowheadSize(stroke));
+      if (el.type === 'freedraw') pad = freedrawMaxWidth(stroke) / 2;
+      return boxExpand(box, pad);
+    }
   }
 }
