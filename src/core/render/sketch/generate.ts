@@ -91,6 +91,9 @@ export function generateDrawable(el: SceneElement): Drawable {
       return linearDrawable(el);
     case 'freedraw':
       return freedrawDrawable(el);
+    case 'text':
+      // Text is painted directly from its layout, not from a sketch.
+      return { layers: [] };
   }
 }
 

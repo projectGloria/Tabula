@@ -2,6 +2,7 @@ import type { I18nKey } from '../../i18n/en';
 import { selectedIds, type AppState, type ToolId } from '../store/app-state';
 import type { Editor } from '../store/editor';
 import { clearSelection, setTool, toggleDebug } from './actions';
+import { canEditSelectedText, editSelectedText } from './text-actions';
 import {
   alignSelection,
   deleteSelection,
@@ -49,6 +50,8 @@ export type CommandId =
   | 'tool.line'
   | 'tool.arrow'
   | 'tool.freedraw'
+  | 'tool.text'
+  | 'edit.text'
   | 'selection.clear'
   | 'selection.all'
   | 'history.undo'
@@ -142,6 +145,13 @@ export const COMMANDS: Readonly<Record<CommandId, Command>> = {
   'tool.line': drawTool('tool.line', 'command.toolLine', 'line'),
   'tool.arrow': drawTool('tool.arrow', 'command.toolArrow', 'arrow'),
   'tool.freedraw': drawTool('tool.freedraw', 'command.toolFreedraw', 'freedraw'),
+  'tool.text': drawTool('tool.text', 'command.toolText', 'text'),
+  'edit.text': {
+    id: 'edit.text',
+    labelKey: 'command.editText',
+    enabled: canEditSelectedText,
+    run: editSelectedText,
+  },
   'selection.clear': { id: 'selection.clear', labelKey: 'command.deselect', run: deselect },
   'selection.all': { id: 'selection.all', labelKey: 'command.selectAll', run: selectAll },
   'history.undo': {

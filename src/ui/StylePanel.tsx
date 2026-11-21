@@ -10,16 +10,28 @@ import type {
   Arrowhead,
   Corners,
   FillStyle,
+  FontFamily,
   Roughness,
   StrokePattern,
   StrokeWidth,
+  TextAlign,
+  VerticalAlign,
 } from '../core/model/types';
+import { selectedIds } from '../core/store/app-state';
+import { boundTextOf } from '../core/text/bound';
+import { clampFontSize, FONT_STACKS } from '../core/text/fonts';
 import type { I18nKey } from '../i18n/en';
 import { t } from '../i18n/t';
 import { useApp } from './app-context';
 import { ArrangeSection } from './ArrangeSection';
 import { useEditorState } from './hooks/useEditorState';
 import {
+  AlignCenterIcon,
+  AlignLeftIcon,
+  AlignRightIcon,
+  VAlignBottomIcon,
+  VAlignMiddleIcon,
+  VAlignTopIcon,
   CornersRoundedIcon,
   CornersSharpIcon,
   EyedropperIcon,
@@ -90,6 +102,80 @@ const HEADS: readonly { value: Arrowhead; labelKey: I18nKey }[] = [
   { value: 'dot', labelKey: 'style.head.dot' },
   { value: 'diamond', labelKey: 'style.head.diamond' },
 ];
+
+const fontGlyph = (family: FontFamily) => (
+  <span className="font-glyph" style={{ fontFamily: FONT_STACKS[family] }} aria-hidden="true">
+    Aa
+  </span>
+);
+
+const FONT_OPTIONS: readonly Option<FontFamily>[] = [
+  { value: 'hand', labelKey: 'style.font.hand', icon: fontGlyph('hand') },
+  { value: 'sans', labelKey: 'style.font.sans', icon: fontGlyph('sans') },
+  { value: 'mono', labelKey: 'style.font.mono', icon: fontGlyph('mono') },
+];
+
+const sizeGlyph = (text: string) => (
+  <span className="size-glyph" aria-hidden="true">
+    {text}
+  </span>
+);
+
+const SIZE_OPTIONS: readonly Option<number>[] = [
+  { value: 16, labelKey: 'style.fontSize.s', icon: sizeGlyph('S') },
+  { value: 20, labelKey: 'style.fontSize.m', icon: sizeGlyph('M') },
+  { value: 28, labelKey: 'style.fontSize.l', icon: sizeGlyph('L') },
+  { value: 36, labelKey: 'style.fontSize.xl', icon: sizeGlyph('XL') },
+];
+
+const ALIGN_OPTIONS: readonly Option<TextAlign>[] = [
+  { value: 'left', labelKey: 'style.textAlign.left', icon: <AlignLeftIcon /> },
+  { value: 'center', labelKey: 'style.textAlign.center', icon: <AlignCenterIcon /> },
+  { value: 'right', labelKey: 'style.textAlign.right', icon: <AlignRightIcon /> },
+];
+
+const VALIGN_OPTIONS: readonly Option<VerticalAlign>[] = [
+  { value: 'top', labelKey: 'style.verticalAlign.top', icon: <VAlignTopIcon /> },
+  { value: 'middle', labelKey: 'style.verticalAlign.middle', icon: <VAlignMiddleIcon /> },
+  { value: 'bottom', labelKey: 'style.verticalAlign.bottom', icon: <VAlignBottomIcon /> },
+];
+
+function FontSizeInput({
+  value,
+  onCommit,
+}: {
+  value: number | 'mixed';
+  onCommit: (v: number) => void;
+}) {
+  const shown = value === 'mixed' ? '' : String(value);
+  const [text, setText] = useState(shown);
+  useEffect(() => {
+    setText(shown);
+  }, [shown]);
+  const commit = (): void => {
+    const n = Number(text);
+    if (text.trim() !== '' && Number.isFinite(n)) onCommit(clampFontSize(n));
+    else setText(shown);
+  };
+  return (
+    <input
+      className="size-input"
+      type="number"
+      min={4}
+      max={400}
+      aria-label={t('style.fontSize.custom')}
+      placeholder={value === 'mixed' ? t('style.mixed') : ''}
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+      }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit();
+      }}
+    />
+  );
+}
 
 const MIXED_VALUE = '__mixed';
 
@@ -313,10 +399,12 @@ function PanelBody({
   view,
   recent,
   apply,
+  showVertical,
 }: {
   view: StyleView;
   recent: readonly string[];
   apply: (p: StylePatch) => void;
+  showVertical: boolean;
 }) {
   return (
     <>
@@ -419,6 +507,58 @@ function PanelBody({
           </div>
         </Section>
       )}
+      {view.fontFamily !== undefined && (
+        <Section labelId="style-font" title={t('style.font')}>
+          <OptionRow
+            options={FONT_OPTIONS}
+            value={view.fontFamily}
+            onPick={(fontFamily) => {
+              apply({ fontFamily });
+            }}
+          />
+        </Section>
+      )}
+      {view.fontSize !== undefined && (
+        <Section labelId="style-font-size" title={t('style.fontSize')}>
+          <div className="size-row">
+            <OptionRow
+              options={SIZE_OPTIONS}
+              value={view.fontSize}
+              onPick={(fontSize) => {
+                apply({ fontSize });
+              }}
+            />
+            <FontSizeInput
+              value={view.fontSize}
+              onCommit={(fontSize) => {
+                apply({ fontSize });
+              }}
+            />
+          </div>
+        </Section>
+      )}
+      {view.textAlign !== undefined && (
+        <Section labelId="style-text-align" title={t('style.textAlign')}>
+          <OptionRow
+            options={ALIGN_OPTIONS}
+            value={view.textAlign}
+            onPick={(textAlign) => {
+              apply({ textAlign });
+            }}
+          />
+        </Section>
+      )}
+      {showVertical && view.verticalAlign !== undefined && (
+        <Section labelId="style-vertical-align" title={t('style.verticalAlign')}>
+          <OptionRow
+            options={VALIGN_OPTIONS}
+            value={view.verticalAlign}
+            onPick={(verticalAlign) => {
+              apply({ verticalAlign });
+            }}
+          />
+        </Section>
+      )}
       {view.opacity !== undefined && (
         <Section labelId="style-opacity" title={t('style.opacity')}>
           <OpacitySlider
@@ -454,10 +594,12 @@ export function StylePanel() {
     editor.update((s) => applyStyle(s, patch), history);
   };
   const hasSelection = Object.keys(selection).length > 0;
+  const state = editor.getState();
+  const showVertical = selectedIds(state).some((id) => boundTextOf(state.scene, id) !== undefined);
 
   return (
     <aside className="style-panel" aria-label={t('style.label')}>
-      <PanelBody view={view} recent={recent} apply={apply} />
+      <PanelBody view={view} recent={recent} apply={apply} showVertical={showVertical} />
       {hasSelection && <ArrangeSection />}
     </aside>
   );

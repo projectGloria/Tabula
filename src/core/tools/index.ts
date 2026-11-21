@@ -3,6 +3,7 @@ import { BoxShapeTool } from './box-shape-tool';
 import { FreedrawTool } from './freedraw-tool';
 import { LinearTool } from './linear-tool';
 import { SelectTool } from './select-tool';
+import { TextTool } from './text-tool';
 import type { Tool } from './tool';
 
 export type ToolRegistry = Readonly<Record<ToolId, Tool>>;
@@ -17,6 +18,7 @@ export function createTools(): ToolRegistry {
     line: new LinearTool('line'),
     arrow: new LinearTool('arrow'),
     freedraw: new FreedrawTool(),
+    text: new TextTool(),
   };
 }
 

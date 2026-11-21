@@ -78,6 +78,16 @@ export function PencilIcon() {
   );
 }
 
+export function TextIcon() {
+  return (
+    <Icon>
+      <path d="M5.5 6.5V5h13v1.5" />
+      <path d="M12 5v14" />
+      <path d="M9.5 19h5" />
+    </Icon>
+  );
+}
+
 export function UndoIcon() {
   return (
     <Icon>

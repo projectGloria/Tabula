@@ -1,0 +1,30 @@
+/*
+ * Self-hosted text faces (all SIL Open Font License). The font files are not
+ * bundled yet; until they are added under `public/fonts/`, `local()` picks up
+ * an installed copy and the stacks in `core/text/fonts.ts` fall back to
+ * system faces.
+ */
+
+@font-face {
+  font-family: 'Tabula Hand';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Patrick Hand'), local('PatrickHand-Regular');
+}
+
+@font-face {
+  font-family: 'Tabula Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Inter'), local('Inter Regular'), local('Inter-Regular');
+}
+
+@font-face {
+  font-family: 'Tabula Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('JetBrains Mono'), local('JetBrainsMono-Regular');
+}

@@ -10,6 +10,7 @@ import {
 } from '../history/history';
 import type { ElementId, Scene } from '../model/types';
 import { GridIndex } from '../spatial/grid-index';
+import { syncText } from '../text/bound';
 import { createInitialState, type AppState } from './app-state';
 import { createStore, type Listener, type Store } from './store';
 
@@ -43,9 +44,10 @@ export class Editor {
   private now: () => number;
 
   constructor(initial: AppState = createInitialState(), now: () => number = () => Date.now()) {
-    this.store = createStore(initial);
+    const scene = syncText(null, initial.scene);
+    this.store = createStore(scene === initial.scene ? initial : { ...initial, scene });
     this.now = now;
-    this.syncIndex(null, initial.scene);
+    this.syncIndex(null, scene);
   }
 
   getState = (): AppState => this.store.getState();
@@ -62,8 +64,17 @@ export class Editor {
 
   update = (fn: (prev: AppState) => AppState, options: UpdateOptions = {}): void => {
     const prev = this.store.getState();
-    const next = fn(prev);
+    let next = fn(prev);
     if (next === prev) return;
+    if (next.scene !== prev.scene) {
+      // Labels follow their containers; text sizes follow their content.
+      const synced = syncText(prev.scene, next.scene);
+      if (synced !== next.scene) next = { ...next, scene: synced };
+    }
+    // An inline text edit is one undo step from opening to closing the editor.
+    const openEdit = prev.editingText === null && next.editingText !== null;
+    const closeEdit = prev.editingText !== null && next.editingText !== prev.editingText;
+    if (openEdit) this.begin();
     if (next.scene !== prev.scene) {
       this.syncIndex(prev.scene, next.scene);
       const h = options.history;
@@ -79,6 +90,10 @@ export class Editor {
       }
     }
     this.store.setState(next);
+    if (closeEdit) {
+      this.end();
+      if (next.editingText !== null) this.begin();
+    }
   };
 
   /** Opens a (nestable) transaction; all scene changes until `end` become one entry. */

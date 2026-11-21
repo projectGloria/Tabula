@@ -57,6 +57,54 @@ export function FillCrossHatchIcon() {
   );
 }
 
+export function AlignLeftIcon() {
+  return (
+    <Glyph>
+      <path d="M4 5.5h12M4 10h8M4 14.5h10" />
+    </Glyph>
+  );
+}
+
+export function AlignCenterIcon() {
+  return (
+    <Glyph>
+      <path d="M4 5.5h12M6 10h8M5 14.5h10" />
+    </Glyph>
+  );
+}
+
+export function AlignRightIcon() {
+  return (
+    <Glyph>
+      <path d="M4 5.5h12M8 10h8M6 14.5h10" />
+    </Glyph>
+  );
+}
+
+export function VAlignTopIcon() {
+  return (
+    <Glyph>
+      <path d="M4 4h12M10 7.5v8.5M7 10.5l3-3 3 3" />
+    </Glyph>
+  );
+}
+
+export function VAlignMiddleIcon() {
+  return (
+    <Glyph>
+      <path d="M4 10h12M10 3.5v3.5M10 13v3.5M8 5.5l2 1.5 2-1.5M8 14.5l2-1.5 2 1.5" />
+    </Glyph>
+  );
+}
+
+export function VAlignBottomIcon() {
+  return (
+    <Glyph>
+      <path d="M4 16h12M10 12.5V4M7 9.5l3 3 3-3" />
+    </Glyph>
+  );
+}
+
 export function WidthIcon({ weight }: { weight: number }) {
   return (
     <Glyph>

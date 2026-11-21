@@ -4,6 +4,7 @@ import { ContextMenu } from '../ui/ContextMenu';
 import { useClipboard } from '../ui/hooks/useClipboard';
 import { useKeyboardShortcuts } from '../ui/hooks/useKeyboardShortcuts';
 import { StylePanel } from '../ui/StylePanel';
+import { TextEditor } from '../ui/TextEditor';
 import { Toolbar } from '../ui/Toolbar';
 import type { AppServices } from './create-app';
 
@@ -13,6 +14,7 @@ function Shell() {
   return (
     <main className="app">
       <Canvas />
+      <TextEditor />
       <Toolbar />
       <StylePanel />
       <ContextMenu />

@@ -29,7 +29,9 @@ export function setSelection(state: AppState, ids: Iterable<ElementId>): AppStat
   const next: Partial<Record<ElementId, true>> = {};
   let count = 0;
   for (const id of ids) {
-    if (state.scene.entities[id]) {
+    const el = state.scene.entities[id];
+    // Labels are selected through their container.
+    if (el && !(el.type === 'text' && el.containerId !== null)) {
       next[id] = true;
       count++;
     }
@@ -40,7 +42,8 @@ export function setSelection(state: AppState, ids: Iterable<ElementId>): AppStat
 }
 
 export function toggleSelected(state: AppState, id: ElementId): AppState {
-  if (!state.scene.entities[id]) return state;
+  const el = state.scene.entities[id];
+  if (!el || (el.type === 'text' && el.containerId !== null)) return state;
   const next: Partial<Record<ElementId, true>> = { ...state.selection };
   if (next[id]) {
     // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- keyed record removal

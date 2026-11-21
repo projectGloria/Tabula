@@ -17,6 +17,7 @@ import type {
   RectangleElement,
   Scene,
   SceneElement,
+  TextElement,
 } from './types';
 
 export const EMPTY_SCENE: Scene = { entities: {}, order: [] };
@@ -203,5 +204,38 @@ export function createFreedraw(
     height: 0,
     points: [{ x: 0, y: 0 }],
     pressures: [init.pressure ?? 0.5],
+  };
+}
+
+export interface NewTextInit {
+  readonly x: number;
+  readonly y: number;
+  readonly text?: string;
+  readonly style?: ElementStyle;
+  readonly fontFamily?: TextElement['fontFamily'];
+  readonly fontSize?: number;
+  readonly textAlign?: TextElement['textAlign'];
+  readonly verticalAlign?: TextElement['verticalAlign'];
+  readonly sizing?: TextElement['sizing'];
+  readonly width?: number;
+  readonly height?: number;
+  readonly containerId?: ElementId | null;
+}
+
+/** A text element; its size is fitted to the content by `syncText`. */
+export function createText(init: NewTextInit): TextElement {
+  const fontSize = init.fontSize ?? 20;
+  return {
+    ...baseFields(init.x, init.y, init.style),
+    type: 'text',
+    width: init.width ?? 0,
+    height: init.height ?? fontSize * 1.25,
+    text: init.text ?? '',
+    fontFamily: init.fontFamily ?? 'hand',
+    fontSize,
+    textAlign: init.textAlign ?? 'left',
+    verticalAlign: init.verticalAlign ?? 'middle',
+    sizing: init.sizing ?? 'auto',
+    containerId: init.containerId ?? null,
   };
 }

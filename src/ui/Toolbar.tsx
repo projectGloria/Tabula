@@ -14,6 +14,7 @@ import {
   RectangleIcon,
   RedoIcon,
   SelectIcon,
+  TextIcon,
   UndoIcon,
 } from './icons';
 
@@ -37,6 +38,7 @@ const TOOL_BUTTONS: readonly ToolButtonDef[] = [
   { tool: 'arrow', command: 'tool.arrow', labelKey: 'tool.arrow', icon: <ArrowIcon /> },
   { tool: 'line', command: 'tool.line', labelKey: 'tool.line', icon: <LineIcon /> },
   { tool: 'freedraw', command: 'tool.freedraw', labelKey: 'tool.freedraw', icon: <PencilIcon /> },
+  { tool: 'text', command: 'tool.text', labelKey: 'tool.text', icon: <TextIcon /> },
 ];
 
 function useHistoryFlag(read: () => boolean): boolean {

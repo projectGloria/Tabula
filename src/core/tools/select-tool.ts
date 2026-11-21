@@ -7,6 +7,7 @@ import {
   setSelection,
 } from '../actions/actions';
 import { duplicateElements, setFocusGroup } from '../actions/edit-actions';
+import { editTextAt } from '../actions/text-actions';
 import { boxContainsBox, boxFromRect, type Box } from '../geometry/box';
 import { pointsPatchFromWorld, worldPointsOf } from '../geometry/element-geometry';
 import { rectAABB, rectCenter, type RectLike } from '../geometry/rect';
@@ -17,8 +18,10 @@ import {
   resizeElementInGroup,
   rotateElementAround,
   rotatedAngle,
+  RESIZE_HANDLE_DIRS,
   type ResizeHandle,
 } from '../geometry/transform';
+import { resizeTextElement } from '../text/resize';
 import { snapAngle } from '../geometry/angle';
 import { distance, type Point } from '../geometry/vec';
 import {
@@ -215,16 +218,17 @@ export class SelectTool implements Tool {
   /** Double-click enters the group under the pointer, one level per click. */
   onDoubleClick(ctx: ToolContext, e: PointerInput): void {
     const hit = ctx.hitTest(e.world);
-    if (hit === undefined) return;
     const state = ctx.getState();
-    const el = state.scene.entities[hit];
-    if (!el) return;
-    const group = selectionTargetGroup(el, state.focusGroup);
-    if (group === null) return;
-    ctx.update((s) => {
-      const focused = setFocusGroup(s, group);
-      return setSelection(focused, expandToGroups(focused.scene, [hit], group));
-    });
+    const el = hit === undefined ? undefined : state.scene.entities[hit];
+    const group = el ? selectionTargetGroup(el, state.focusGroup) : null;
+    if (hit !== undefined && group !== null) {
+      ctx.update((s) => {
+        const focused = setFocusGroup(s, group);
+        return setSelection(focused, expandToGroups(focused.scene, [hit], group));
+      });
+      return;
+    }
+    ctx.update((s) => editTextAt(s, e.world, hit));
   }
 
   onPointerMove(ctx: ToolContext, e: PointerInput): void {
@@ -349,16 +353,26 @@ export class SelectTool implements Tool {
       x: p.handleWorld.x + e.world.x - p.startWorld.x,
       y: p.handleWorld.y + e.world.y - p.startWorld.y,
     };
-    // Multi-selection always scales proportionally so rotated members stay undistorted.
+    const dir = RESIZE_HANDLE_DIRS[p.handle];
+    const corner = dir.x !== 0 && dir.y !== 0;
+    const soloText = p.single && [...p.originals.values()].some((el) => el.type === 'text');
+    // Multi-selection always scales proportionally so rotated members stay
+    // undistorted; a text corner scales its font, so it keeps its aspect too.
     const m = computeResize(p.frame, p.handle, target, {
-      keepAspect: p.single ? e.shift : true,
+      keepAspect: p.single ? e.shift || (soloText && corner) : true,
       fromCenter: e.alt,
     });
     const patches = new Map<ElementId, GeometryPatch>();
+    const texts: SceneElement[] = [];
     for (const [id, el] of p.originals) {
-      patches.set(id, p.single ? resizeElement(el, m) : resizeElementInGroup(el, p.frame, m));
+      const g = p.single ? resizeElement(el, m) : resizeElementInGroup(el, p.frame, m);
+      if (el.type === 'text') {
+        texts.push(resizeTextElement(el, g, p.single ? p.handle : null, Math.abs(m.sx)));
+      } else {
+        patches.set(id, g);
+      }
     }
-    ctx.update((s) => setElementGeometry(s, patches));
+    ctx.update((s) => restoreElements(setElementGeometry(s, patches), texts));
   }
 
   private applyRotate(ctx: ToolContext, p: RotatePress, e: PointerInput): void {

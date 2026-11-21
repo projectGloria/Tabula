@@ -2,9 +2,19 @@ import { DEFAULT_CAMERA, type Camera, type Viewport } from '../camera/camera';
 import { EMPTY_SCENE } from '../model/scene';
 import { DEFAULT_STYLE } from '../model/style';
 import type { Box } from '../geometry/box';
-import type { Arrowhead, ElementId, ElementStyle, GroupId, Scene } from '../model/types';
+import type {
+  Arrowhead,
+  ElementId,
+  ElementStyle,
+  FontFamily,
+  GroupId,
+  Scene,
+  TextAlign,
+  VerticalAlign,
+} from '../model/types';
 
-export type ToolId = 'select' | 'rectangle' | 'diamond' | 'ellipse' | 'line' | 'arrow' | 'freedraw';
+export type ToolId =
+  'select' | 'rectangle' | 'diamond' | 'ellipse' | 'line' | 'arrow' | 'freedraw' | 'text';
 
 export type Selection = Readonly<Partial<Record<ElementId, true>>>;
 
@@ -25,6 +35,8 @@ export interface AppState {
   readonly focusGroup: GroupId | null;
   /** Transient overlay chrome drawn by tools (marquee, guides, highlights). */
   readonly overlay: OverlayState;
+  /** Text element open in the inline editor; edits form one history step. */
+  readonly editingText: ElementId | null;
 }
 
 export interface OverlayState {
@@ -35,26 +47,44 @@ export interface OverlayState {
 export const EMPTY_OVERLAY: OverlayState = { marquee: null };
 
 /** Tools sharing one remembered style: shapes, lines and arrows, freedraw. */
-export type StyleCategory = 'shape' | 'linear' | 'freedraw';
+export type StyleCategory = 'shape' | 'linear' | 'freedraw' | 'text';
 
 export interface ArrowHeads {
   readonly start: Arrowhead;
   readonly end: Arrowhead;
 }
 
+export interface TextProps {
+  readonly fontFamily: FontFamily;
+  readonly fontSize: number;
+  readonly textAlign: TextAlign;
+  readonly verticalAlign: VerticalAlign;
+}
+
+export const DEFAULT_TEXT_PROPS: TextProps = {
+  fontFamily: 'hand',
+  fontSize: 20,
+  textAlign: 'left',
+  verticalAlign: 'middle',
+};
+
 /** Last-used style per tool category, applied to newly created elements. */
 export interface StyleMemory {
   readonly shape: ElementStyle;
   readonly linear: ElementStyle;
   readonly freedraw: ElementStyle;
+  readonly text: ElementStyle;
   readonly arrowHeads: ArrowHeads;
+  readonly textProps: TextProps;
 }
 
 export const DEFAULT_STYLE_MEMORY: StyleMemory = {
   shape: DEFAULT_STYLE,
   linear: DEFAULT_STYLE,
   freedraw: DEFAULT_STYLE,
+  text: DEFAULT_STYLE,
   arrowHeads: { start: 'none', end: 'arrow' },
+  textProps: DEFAULT_TEXT_PROPS,
 };
 
 export const EMPTY_SELECTION: Selection = {};
@@ -72,6 +102,7 @@ export function createInitialState(overrides: Partial<AppState> = {}): AppState 
     recentColors: [],
     focusGroup: null,
     overlay: EMPTY_OVERLAY,
+    editingText: null,
     ...overrides,
   };
 }

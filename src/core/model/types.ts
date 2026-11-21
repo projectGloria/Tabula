@@ -91,10 +91,34 @@ export interface FreedrawElement extends PointsElementBase {
   readonly pressures: readonly number[];
 }
 
+export type FontFamily = 'hand' | 'sans' | 'mono';
+export type TextAlign = 'left' | 'center' | 'right';
+export type VerticalAlign = 'top' | 'middle' | 'bottom';
+/** `auto` grows with its content; `fixed` keeps `width` and wraps lines. */
+export type TextSizing = 'auto' | 'fixed';
+
+/**
+ * Text. Free text has `containerId: null`. Bound text (a shape's label or an
+ * arrow's midpoint label) names its container; its geometry is derived from
+ * the container on every change and it is never selected on its own.
+ * Text color is `style.strokeColor`.
+ */
+export interface TextElement extends BaseElement {
+  readonly type: 'text';
+  readonly text: string;
+  readonly fontFamily: FontFamily;
+  /** World units. */
+  readonly fontSize: number;
+  readonly textAlign: TextAlign;
+  readonly verticalAlign: VerticalAlign;
+  readonly sizing: TextSizing;
+  readonly containerId: ElementId | null;
+}
+
 export type BoxElement = RectangleElement | DiamondElement | EllipseElement;
 export type LinearElement = LineElement | ArrowElement;
 export type PointsElement = LinearElement | FreedrawElement;
-export type SceneElement = BoxElement | PointsElement;
+export type SceneElement = BoxElement | PointsElement | TextElement;
 export type ElementType = SceneElement['type'];
 export type BoxElementType = BoxElement['type'];
 export type LinearElementType = LinearElement['type'];

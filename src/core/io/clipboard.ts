@@ -1,4 +1,4 @@
-import { cloneElements } from '../actions/edit-actions';
+import { cloneElements, withBoundText } from '../actions/edit-actions';
 import { setSelection } from '../actions/actions';
 import { boxCenter, boxUnion, type Box } from '../geometry/box';
 import { rectAABB } from '../geometry/rect';
@@ -23,7 +23,7 @@ interface ClipboardPayload {
 
 /** Selected elements in z-order, ready to copy. */
 export function copyableElements(state: AppState): SceneElement[] {
-  return selectedIds(state).flatMap((id) => {
+  return withBoundText(state.scene, selectedIds(state)).flatMap((id) => {
     const el = state.scene.entities[id];
     return el ? [el] : [];
   });

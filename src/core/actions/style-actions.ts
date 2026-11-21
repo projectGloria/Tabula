@@ -1,19 +1,26 @@
 import { replaceElements } from '../model/scene';
 import { isPaletteColor, MAX_RECENT_COLORS, normalizeHex } from '../model/palette';
 import type { Arrowhead, ElementStyle, ElementType, SceneElement } from '../model/types';
+import { boundTextOf, isTextContainer } from '../text/bound';
+import { clampFontSize } from '../text/fonts';
 import {
   selectedIds,
   type AppState,
   type StyleCategory,
   type StyleMemory,
+  type TextProps,
   type ToolId,
 } from '../store/app-state';
 
-/** Every style property the inspector edits, including per-arrow heads. */
-export interface FullStyle extends ElementStyle {
+/** Every style property the inspector edits, including arrow heads and text. */
+export interface FullStyle extends ElementStyle, TextProps {
   readonly startHead: Arrowhead;
   readonly endHead: Arrowhead;
 }
+
+const TEXT_KEYS = ['fontFamily', 'fontSize', 'textAlign', 'verticalAlign'] as const;
+type TextKey = (typeof TEXT_KEYS)[number];
+const isTextKey = (k: string): k is TextKey => (TEXT_KEYS as readonly string[]).includes(k);
 
 export type StyleKey = keyof FullStyle;
 export type StylePatch = Partial<FullStyle>;
@@ -32,18 +39,28 @@ export const STYLE_KEYS: readonly StyleKey[] = [
   'opacity',
   'startHead',
   'endHead',
+  'fontFamily',
+  'fontSize',
+  'textAlign',
+  'verticalAlign',
 ];
 
 /** Whether an element type has a given style property. */
 export function supportsStyle(type: ElementType, key: StyleKey): boolean {
   switch (key) {
     case 'strokeColor':
-    case 'strokeWidth':
     case 'opacity':
       return true;
+    case 'strokeWidth':
+      return type !== 'text';
     case 'strokePattern':
     case 'roughness':
-      return type !== 'freedraw';
+      return type !== 'freedraw' && type !== 'text';
+    case 'fontFamily':
+    case 'fontSize':
+    case 'textAlign':
+    case 'verticalAlign':
+      return type === 'text';
     case 'fillColor':
     case 'fillStyle':
       return type === 'rectangle' || type === 'diamond' || type === 'ellipse';
@@ -66,6 +83,8 @@ export function categoryOfType(type: ElementType): StyleCategory {
       return 'linear';
     case 'freedraw':
       return 'freedraw';
+    case 'text':
+      return 'text';
   }
 }
 
@@ -79,7 +98,16 @@ function fullStyleOf(el: SceneElement, memory: StyleMemory): FullStyle {
     el.type === 'arrow'
       ? { startHead: el.startHead, endHead: el.endHead }
       : { startHead: memory.arrowHeads.start, endHead: memory.arrowHeads.end };
-  return { ...el.style, ...heads };
+  const text: TextProps =
+    el.type === 'text'
+      ? {
+          fontFamily: el.fontFamily,
+          fontSize: el.fontSize,
+          textAlign: el.textAlign,
+          verticalAlign: el.verticalAlign,
+        }
+      : memory.textProps;
+  return { ...el.style, ...heads, ...text };
 }
 
 /** Remembered style a drawing tool will use for its next element. */
@@ -89,7 +117,23 @@ export function rememberedStyle(state: AppState, type: ElementType): FullStyle {
     ...m[categoryOfType(type)],
     startHead: m.arrowHeads.start,
     endHead: m.arrowHeads.end,
+    ...m.textProps,
   };
+}
+
+/** Selected elements plus the labels of selected containers. */
+function styleTargets(state: AppState): SceneElement[] {
+  const out: SceneElement[] = [];
+  for (const id of selectedIds(state)) {
+    const el = state.scene.entities[id];
+    if (!el) continue;
+    out.push(el);
+    if (isTextContainer(el)) {
+      const label = boundTextOf(state.scene, el.id);
+      if (label) out.push(label);
+    }
+  }
+  return out;
 }
 
 /**
@@ -97,11 +141,9 @@ export function rememberedStyle(state: AppState, type: ElementType): FullStyle {
  * elements differ), else the active drawing tool's remembered style, else null.
  */
 export function getStyleView(state: AppState): StyleView | null {
-  const ids = selectedIds(state);
   const sources: { type: ElementType; style: FullStyle }[] = [];
-  for (const id of ids) {
-    const el = state.scene.entities[id];
-    if (el) sources.push({ type: el.type, style: fullStyleOf(el, state.styleMemory) });
+  for (const el of styleTargets(state)) {
+    sources.push({ type: el.type, style: fullStyleOf(el, state.styleMemory) });
   }
   if (sources.length === 0) {
     const type = toolElementType(state.activeTool);
@@ -138,7 +180,32 @@ function patchFor(type: ElementType, patch: StylePatch): StylePatch {
 }
 
 function withPatch(el: SceneElement, patch: StylePatch): SceneElement {
-  const { startHead, endHead, ...stylePart } = patch;
+  const { startHead, endHead, fontFamily, fontSize, textAlign, verticalAlign, ...stylePart } =
+    patch;
+  if (el.type === 'text') {
+    const style = { ...el.style, ...stylePart };
+    const styleChanged = (Object.keys(stylePart) as (keyof ElementStyle)[]).some(
+      (k) => el.style[k] !== style[k],
+    );
+    const next = {
+      fontFamily: fontFamily ?? el.fontFamily,
+      fontSize: fontSize === undefined ? el.fontSize : clampFontSize(fontSize),
+      textAlign: textAlign ?? el.textAlign,
+      verticalAlign: verticalAlign ?? el.verticalAlign,
+    };
+    const textChanged =
+      next.fontFamily !== el.fontFamily ||
+      next.fontSize !== el.fontSize ||
+      next.textAlign !== el.textAlign ||
+      next.verticalAlign !== el.verticalAlign;
+    if (!styleChanged && !textChanged) return el;
+    return {
+      ...el,
+      ...next,
+      style: styleChanged ? style : el.style,
+      revision: el.revision + 1,
+    };
+  }
   const style = { ...el.style, ...stylePart };
   const styleChanged = (Object.keys(stylePart) as (keyof ElementStyle)[]).some(
     (k) => el.style[k] !== style[k],
@@ -164,8 +231,17 @@ function rememberStyle(
   category: StyleCategory,
   patch: StylePatch,
 ): StyleMemory {
-  const { startHead, endHead, ...stylePart } = patch;
+  const { startHead, endHead, ...rest } = patch;
+  const stylePart: Partial<ElementStyle> = {};
+  const textPart: Partial<Record<TextKey, unknown>> = {};
+  for (const [k, v] of Object.entries(rest)) {
+    if (isTextKey(k)) textPart[k] = v;
+    else (stylePart as Record<string, unknown>)[k] = v;
+  }
   let next = memory;
+  if ((Object.keys(textPart) as TextKey[]).some((k) => next.textProps[k] !== textPart[k])) {
+    next = { ...next, textProps: { ...next.textProps, ...textPart } as TextProps };
+  }
   const current = next[category];
   if ((Object.keys(stylePart) as (keyof ElementStyle)[]).some((k) => current[k] !== stylePart[k]))
     next = { ...next, [category]: { ...current, ...stylePart } };
@@ -201,12 +277,11 @@ export function pushRecentColor(recent: readonly string[], color: string): reado
 export function applyStyle(state: AppState, patch: StylePatch): AppState {
   let memory = state.styleMemory;
   let scene = state.scene;
-  const ids = selectedIds(state);
-  if (ids.length > 0) {
+  const targets = styleTargets(state);
+  if (targets.length > 0) {
     const updated: SceneElement[] = [];
-    for (const id of ids) {
-      const el = state.scene.entities[id];
-      if (!el || el.locked) continue;
+    for (const el of targets) {
+      if (el.locked) continue;
       const p = patchFor(el.type, patch);
       memory = rememberStyle(memory, categoryOfType(el.type), p);
       const next = withPatch(el, p);

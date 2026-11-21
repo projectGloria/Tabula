@@ -9,8 +9,8 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 | 1   | Foundation & Guardrails           | Done                                |
 | 2   | Core Shapes & Transform Geometry  | Done                                |
 | 3   | Hand-Drawn Renderer & Style Panel | Done                                |
-| 4   | Editing Core & History            | **Done**: awaiting browser sign-off |
-| 5   | Text & Bound Labels               | —                                   |
+| 4   | Editing Core & History            | Done                                |
+| 5   | Text & Bound Labels               | **Done**: awaiting browser sign-off |
 | 6   | Arrow Binding & Snapping          | —                                   |
 | 7   | Persistence, Files & Export       | — (planned split: 7a / 7b)          |
 | 8   | UX Polish, A11y & Offline PWA     | —                                   |
@@ -19,14 +19,16 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 
 - File extension `.tabula`. Schema version: TBD in M7.
 - LICENSE: proprietary, "Copyright (c) 2026 Project Gloria. All rights reserved." Confirmed by the user on 2026-11-21.
-- Fonts approved (OFL, self-hosted; bundled in M5): Patrick Hand, Inter, JetBrains Mono.
+- Fonts approved (OFL, self-hosted): Patrick Hand, Inter, JetBrains Mono. The font files are **not downloaded yet** (needs permission); `fonts.css` uses `local()` and falls back to system stacks.
 - Unfilled shapes hit only near their outline; filled shapes hit anywhere inside.
 - Runtime deps: `react` and `react-dom` only.
 - Web Locks API and the M7 split were proposed and assumed approved (not explicitly confirmed).
 - M2 (flagged, not yet confirmed): multi-selection resize is always aspect-locked, so rotated members stay undistorted. Pencil is sticky and does not select its stroke. A 2-point line or arrow shows endpoint handles only. Escape keeps a polyline that has ≥ 2 points. The arrow default is no start head and an `arrow` end head. All 6 head types render.
 - M3 (flagged, not yet confirmed): style memory is per category (rect/diamond/ellipse share one; line/arrow share one; pencil has its own; arrowheads are separate). Editing the selection also updates its category's memory. Locked elements are skipped. Only custom (non-palette) colors go into Recent, which is session-only until M7. Roughness and pattern do not apply to pencil strokes. The hatch color is the fill color, so the default white fill makes a hatch invisible until a fill color is picked.
 
-- M4 (flagged, not yet confirmed): Ctrl/⌘+D duplicates (offset 10). Alt+drag duplicates. A click selects the outermost group; double-click enters it (focus group, dashed frame). Ctrl/⌘+click picks a single member. The marquee selects only fully enclosed, unlocked elements. Clipboard is JSON `text/plain` with kind `tabula/clipboard`; paste goes to the pointer, Ctrl/⌘+Shift+V pastes in place. Locked elements cannot be selected by click or marquee and are skipped by every edit; "Unlock all" is in the canvas menu. History keeps scene changes only (selection is restored with them), max 200 entries, keyed edits coalesce within 1 s.
+- M4 (flagged, not yet confirmed): Ctrl/⌘+D duplicates (offset 16). Alt+drag duplicates. A click selects the outermost group; double-click enters it (focus group, dashed frame). Ctrl/⌘+click picks a single member. The marquee selects only fully enclosed, unlocked elements. Clipboard is JSON `text/plain` with kind `tabula/clipboard`; paste goes to the pointer, Ctrl/⌘+Shift+V pastes in place. Locked elements cannot be selected by click or marquee and are skipped by every edit; "Unlock all" is in the canvas menu. History keeps scene changes only (selection is restored with them), max 200 entries, keyed edits coalesce within 1 s.
+
+- M5 (flagged, not yet confirmed): T selects the text tool; a click makes auto-width text, a drag makes fixed-width (wrapping) text. Double-click (or Enter on a selection) edits text, or labels the shape or arrow under the pointer; double-clicking inside an unfilled box labels it. Esc, blur or Ctrl/⌘+Enter closes the editor, and empty text is deleted. One edit = one undo step. Labels default to centre/middle in the container's stroke color. A box container grows taller to fit its label (it never shrinks back). Arrow labels sit on the midpoint, unrotated, on a background-colored backdrop. Text resize: corners scale the font size, left/right handles set a wrap width, top/bottom do nothing. Text color is the stroke color.
 
 ## Locked invariants
 
@@ -46,6 +48,7 @@ Local-first, offline, hand-drawn whiteboard. Build plan: `INITIAL_PLAN.md`.
 - **All UI strings** go through `t()` (`src/i18n`).
 - **History**: `Editor.update` records scene changes. `begin`/`end` collapse a gesture into one entry; `{history: 'skip'}` leaves a change out; any other string key coalesces. Tools wrap gestures in transactions.
 - **Groups**: `groupIds` are innermost first. Selection target = outermost group, or the next group inside `focusGroup`.
+- **Text**: `TextElement {text, fontFamily, fontSize, textAlign, verticalAlign, sizing: auto|fixed, containerId}`. Bound text (`containerId` set) is never selected, hit or moved directly; `syncText` (run in `Editor.update` on every scene change) removes orphans, refits text and places labels. Layout uses a swappable `TextMeasurer` (canvas in the app, a deterministic approximation in tests); line height is 1.25 em.
 - **Dev-only commands** (`devOnly: true`) are filtered out of production bindings.
 
 ## Module map
@@ -75,12 +78,15 @@ src/core/history    history.ts (stack, coalescing, transactions)
 src/core/io         validate.ts (sanitizeElement/Style: untrusted input), clipboard.ts
 src/core/actions    edit-actions.ts (select all, delete, duplicate, group, z-order, align, flip,
                     lock, nudge); model/groups.ts (expandToGroups, selectionTargetGroup)
+src/core/text       fonts (stacks, sizes), measure (TextMeasurer), layout (wrapText, layoutOf cache),
+                    bound (syncText, placeBoundText, containers), resize (text resize rules)
+src/core/actions    text-actions.ts (open/close editor, createTextAt, editTextAt, labels)
 src/core/{binding,snapping,persist}   empty; reserved for M6/M7
 src/i18n            en.ts (string table), t.ts
-src/app             main.tsx (entry), create-app.ts (wires services), App.tsx
+src/app             main.tsx (entry), create-app.ts (wires services), App.tsx, text-setup.ts
 src/ui              Canvas.tsx (pointer/wheel/resize), Toolbar.tsx, StylePanel.tsx, icons.tsx,
-                    style-icons.tsx, ArrangeSection.tsx, ContextMenu.tsx, hooks/ (useClipboard),
-                    styles.css
+                    style-icons.tsx, ArrangeSection.tsx, ContextMenu.tsx, TextEditor.tsx (textarea overlay),
+                    hooks/ (useClipboard), styles.css, fonts.css
 ```
 
 Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
@@ -103,7 +109,8 @@ Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
 - At opacity below 100% a solid fill and its outline overlap and the overlap looks slightly darker (layers are composited separately).
 - The eyedropper uses the browser EyeDropper API (Chromium only) and is hidden elsewhere.
 - The style panel has no keyboard shortcuts yet (M8).
-- Fonts are not bundled yet (M5). The UI uses the system font stack.
+- Font files are not bundled; without them installed locally, text falls back to system fonts.
+- Rotated text is edited in a rotated textarea; IME composition is untested.
 - Tool lock is in M8: shape and line tools return to Select after each shape (the pencil stays active).
 - The debug overlay text is drawn in English via `t()` and is not RTL-aware.
 - No Playwright E2E yet (M8).
@@ -112,8 +119,8 @@ Entry point is `src/app/main.tsx` → `createApp()` → `<App services>`.
 
 `npm run dev` · `npm run typecheck` · `npm test` · `npm run lint` · `npm run format` · `npm run build`
 
-## Next: Milestone 5 starting point
+## Next: Milestone 6 starting point
 
-1. Text element (`text` type) with a textarea overlay editor, auto-size, alignment, font family/size.
-2. Bound labels on shapes and arrows; add `text` to `validate`.
-3. Fonts via `@font-face` with fallback stacks (font files pending download approval).
+1. Arrow endpoints bind to shapes (gap, follow on move/resize, unbind on drag away).
+2. Grid toggle and snapping to grid / objects.
+3. Line vertex editing.

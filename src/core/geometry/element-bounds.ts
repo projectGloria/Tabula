@@ -19,6 +19,8 @@ export function elementBounds(el: SceneElement): Box {
     case 'diamond':
     case 'ellipse':
       return boxExpand(rectAABB(el), stroke / 2 + rough);
+    case 'text':
+      return boxExpand(rectAABB(el), 2);
     case 'line':
     case 'arrow':
     case 'freedraw': {

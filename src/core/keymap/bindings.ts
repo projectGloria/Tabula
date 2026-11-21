@@ -9,6 +9,8 @@ export const DEFAULT_BINDINGS: readonly KeyBinding[] = [
   { combo: 'L', command: 'tool.line' },
   { combo: 'A', command: 'tool.arrow' },
   { combo: 'P', command: 'tool.freedraw' },
+  { combo: 'T', command: 'tool.text' },
+  { combo: 'Enter', command: 'edit.text' },
   { combo: 'Escape', command: 'selection.clear' },
   { combo: 'Mod+A', command: 'selection.all' },
   { combo: 'Mod+Z', command: 'history.undo' },

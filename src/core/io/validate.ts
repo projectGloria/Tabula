@@ -9,10 +9,15 @@ import type {
   GroupId,
   LocalPoint,
   Roughness,
+  FontFamily,
   SceneElement,
   StrokePattern,
   StrokeWidth,
+  TextAlign,
+  TextSizing,
+  VerticalAlign,
 } from '../model/types';
+import { clampFontSize, DEFAULT_FONT_SIZE } from '../text/fonts';
 
 /*
  * Defensive parsing of untrusted element data (clipboard, files). Anything
@@ -24,6 +29,12 @@ import type {
 export const MAX_POINTS = 50_000;
 export const MAX_GROUP_DEPTH = 32;
 export const MAX_COORD = 1e7;
+export const MAX_TEXT_CHARS = 100_000;
+
+const FAMILIES: readonly FontFamily[] = ['hand', 'sans', 'mono'];
+const ALIGNS: readonly TextAlign[] = ['left', 'center', 'right'];
+const VALIGNS: readonly VerticalAlign[] = ['top', 'middle', 'bottom'];
+const SIZINGS: readonly TextSizing[] = ['auto', 'fixed'];
 
 type Raw = Record<string, unknown>;
 
@@ -155,6 +166,21 @@ export function sanitizeElement(raw: unknown): SceneElement | null {
       const pr = Array.isArray(raw.pressures) ? (raw.pressures as unknown[]) : [];
       const pressures = pts.map((_, i) => Math.min(1, Math.max(0, finite(pr[i], 0.5))));
       return { ...base, type: 'freedraw', points: pts, pressures };
+    }
+    case 'text': {
+      const text = typeof raw.text === 'string' ? raw.text.slice(0, MAX_TEXT_CHARS) : '';
+      const containerId = str(raw.containerId, 64);
+      return {
+        ...base,
+        type: 'text',
+        text,
+        fontFamily: oneOf(raw.fontFamily, FAMILIES, 'hand'),
+        fontSize: clampFontSize(finite(raw.fontSize, DEFAULT_FONT_SIZE)),
+        textAlign: oneOf(raw.textAlign, ALIGNS, 'left'),
+        verticalAlign: oneOf(raw.verticalAlign, VALIGNS, 'middle'),
+        sizing: oneOf(raw.sizing, SIZINGS, 'auto'),
+        containerId: containerId === null ? null : (containerId as ElementId),
+      };
     }
     default:
       return null;

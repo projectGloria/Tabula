@@ -12,6 +12,7 @@ import { createElementId, createGroupId } from '../model/ids';
 import { insertElements, isPointsElement, mutateElement, replaceElements } from '../model/scene';
 import type { ElementId, GroupId, Scene, SceneElement } from '../model/types';
 import { selectedIds, type AppState } from '../store/app-state';
+import { boundTextIndex } from '../text/bound';
 import { clearSelection, deleteElements, moveElements, setSelection } from './actions';
 
 /** Offset for duplicates and repeated pastes, in world units. */
@@ -72,9 +73,40 @@ export function cloneElements(
   remap: (g: GroupId) => boolean,
 ): SceneElement[] {
   const newIds = new Map<GroupId, GroupId>();
-  return elements.map((el) => ({
+  const ids = new Map<ElementId, ElementId>(elements.map((el) => [el.id, createElementId()]));
+  return elements.flatMap((el): SceneElement[] => {
+    const id = ids.get(el.id) ?? createElementId();
+    if (el.type === 'text' && el.containerId !== null) {
+      // A label is copied only together with its container.
+      const containerId = ids.get(el.containerId);
+      if (containerId === undefined) return [];
+      return [cloneOne({ ...el, containerId }, id, offset, remap, newIds)];
+    }
+    return [cloneOne(el, id, offset, remap, newIds)];
+  });
+}
+
+/** Elements plus the labels bound to any of them, in z-order. */
+export function withBoundText(scene: Scene, ids: Iterable<ElementId>): ElementId[] {
+  const set = new Set(ids);
+  const index = boundTextIndex(scene);
+  for (const id of [...set]) {
+    const t = index.get(id);
+    if (t !== undefined) set.add(t);
+  }
+  return scene.order.filter((id) => set.has(id));
+}
+
+function cloneOne(
+  el: SceneElement,
+  id: ElementId,
+  offset: Point,
+  remap: (g: GroupId) => boolean,
+  newIds: Map<GroupId, GroupId>,
+): SceneElement {
+  return {
     ...el,
-    id: createElementId(),
+    id,
     x: el.x + offset.x,
     y: el.y + offset.y,
     locked: false,
@@ -88,7 +120,7 @@ export function cloneElements(
       }
       return n;
     }),
-  }));
+  };
 }
 
 /** Inserts copies directly above the topmost source element and selects them. */
@@ -98,18 +130,19 @@ export function duplicateElements(
   offset: Point,
 ): AppState {
   const set = new Set(ids);
-  const sources = state.scene.order.filter((id) => set.has(id));
+  const sources = withBoundText(state.scene, ids);
   const elements = sources.flatMap((id) => {
     const el = state.scene.entities[id];
     return el ? [el] : [];
   });
   if (elements.length === 0) return state;
   const copies = cloneElements(elements, offset, (g) => groupFullyIn(state.scene, g, set));
+  const selectable = copies.filter((c) => !(c.type === 'text' && c.containerId !== null));
   const top = Math.max(...sources.map((id) => state.scene.order.indexOf(id)));
   const scene = insertElements(state.scene, copies, top + 1);
   return setSelection(
     { ...state, scene },
-    copies.map((c) => c.id),
+    selectable.map((c) => c.id),
   );
 }
 

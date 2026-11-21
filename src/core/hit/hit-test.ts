@@ -83,6 +83,13 @@ export function hitTestElement(el: SceneElement, p: Point, tolerance: number): b
       return distanceToPolyline(local, el.points) <= reach;
     case 'freedraw':
       return hitFreedraw(el, local, tolerance);
+    case 'text':
+      return (
+        local.x >= -tolerance &&
+        local.y >= -tolerance &&
+        local.x <= el.width + tolerance &&
+        local.y <= el.height + tolerance
+      );
   }
 }
 
@@ -99,7 +106,14 @@ export function hitTopmost(
     const id = scene.order[i];
     if (id === undefined || !candidates.has(id)) continue;
     const el = scene.entities[id];
-    if (el && !el.locked && hitTestElement(el, p, tolerance)) return id;
+    if (!el || !hitTestElement(el, p, tolerance)) continue;
+    // A label hit selects its container.
+    if (el.type === 'text' && el.containerId !== null) {
+      const c = scene.entities[el.containerId];
+      if (c && !c.locked) return c.id;
+      continue;
+    }
+    if (!el.locked) return id;
   }
   return undefined;
 }

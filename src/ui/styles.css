@@ -349,3 +349,48 @@ body {
     animation: none !important;
   }
 }
+
+/* --- Text ------------------------------------------------------------- */
+
+.text-editor {
+  position: absolute;
+  z-index: 5;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  caret-color: var(--ui-focus);
+}
+
+.font-glyph,
+.size-glyph {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.size-glyph {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.size-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.size-input {
+  width: 56px;
+  padding: 4px 6px;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: var(--ui-bg);
+  color: var(--ui-fg);
+  font: inherit;
+  font-size: 13px;
+}
